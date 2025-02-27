@@ -251,6 +251,75 @@ void PycModule::loadFromMarshalledFile(const char* filename, int major, int mino
     m_code = LoadObject(&in, this).cast<PycCode>();
 }
 
+void PycModule::loadFromOneshotSequenceFile(const char *filename)
+{
+    PycFile in(filename);
+    if (!in.isOpen())
+    {
+        fprintf(stderr, "Error opening file %s\n", filename);
+        return;
+    }
+
+    bool oneshot_seq_header = true;
+    while (oneshot_seq_header)
+    {
+        int indicator = in.getByte();
+        switch (indicator)
+        {
+        case 0xA1:
+            in.getBuffer(16, this->pyarmor_aes_key);
+            break;
+        case 0xA2:
+            in.getBuffer(12, this->pyarmor_mix_str_aes_nonce);
+            break;
+        case 0xF0:
+            break;
+        case 0xFF:
+            oneshot_seq_header = false;
+            break;
+        default:
+            fprintf(stderr, "Unknown 1-shot sequence indicator %02X\n", indicator);
+            break;
+        }
+    }
+
+    // Write only. Some fields unknown to us or not needed for decryption are discarded.
+    char discard_buffer[64];
+
+    char pyarmor_header[64];
+    in.getBuffer(64, pyarmor_header);
+    this->m_maj = pyarmor_header[9];
+    this->m_min = pyarmor_header[10];
+    this->m_unicode = (m_maj >= 3);
+
+    unsigned int remain_header_length = *(unsigned int *)(pyarmor_header + 28) - 64;
+    while (remain_header_length)
+    {
+        unsigned int discard_length = (remain_header_length > 64) ? 64 : remain_header_length;
+        in.getBuffer(discard_length, discard_buffer);
+        remain_header_length -= discard_length;
+    }
+
+    // For 1-shot sequence, the following part has been decrypted once.
+    unsigned int code_object_offset = in.get32();
+    unsigned int co_code_aes_nonce_xor_key_procedure_length = in.get32();
+    this->pyarmor_co_code_aes_nonce_xor_enabled = (co_code_aes_nonce_xor_key_procedure_length > 0);
+    unsigned int remain_second_part_length = code_object_offset - 8;
+    while (remain_second_part_length)
+    {
+        unsigned int discard_length = (remain_second_part_length > 64) ? 64 : remain_second_part_length;
+        in.getBuffer(discard_length, discard_buffer);
+        remain_second_part_length -= discard_length;
+    }
+
+    if (this->pyarmor_co_code_aes_nonce_xor_enabled)
+    {
+        // TODO: Implement the decryption procedure.
+    }
+
+    m_code = LoadObject(&in, this).cast<PycCode>();
+}
+
 PycRef<PycString> PycModule::getIntern(int ref) const
 {
     if (ref < 0 || (size_t)ref >= m_interns.size())

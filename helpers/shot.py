@@ -37,7 +37,7 @@ def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str,
             with open(dest_path + '.1shot.seq', 'wb') as f:
                 f.write(b'\xa1' + runtime.runtime_aes_key)
                 f.write(b'\xa2' + runtime.mix_str_aes_nonce())
-                f.write(b'\xf0\xf0')
+                f.write(b'\xf0\xff')
                 f.write(data[:cipher_text_offset])
                 f.write(general_aes_ctr_decrypt(
                     data[cipher_text_offset:cipher_text_offset+cipher_text_length], runtime.runtime_aes_key, nonce))

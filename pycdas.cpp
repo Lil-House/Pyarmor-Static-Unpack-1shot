@@ -23,7 +23,7 @@ static const char* flag_names[] = {
     "CO_FUTURE_PRINT_FUNCTION", "CO_FUTURE_UNICODE_LITERALS", "CO_FUTURE_BARRY_AS_BDFL",
             "CO_FUTURE_GENERATOR_STOP",
     "CO_FUTURE_ANNOTATIONS", "CO_NO_MONITORING_EVENTS", "<0x4000000>", "<0x8000000>",
-    "<0x10000000>", "<0x20000000>", "<0x40000000>", "<0x80000000>"
+    "<0x10000000>", "CO_PYARMOR_OBFUSCATED", "<0x40000000>", "<0x80000000>"
 };
 
 static void print_coflags(unsigned long flags, std::ostream& pyc_output)

@@ -46,6 +46,7 @@ public:
 
     void loadFromFile(const char* filename);
     void loadFromMarshalledFile(const char *filename, int major, int minor);
+    void loadFromOneshotSequenceFile(const char* filename);
     bool isValid() const { return (m_maj >= 0) && (m_min >= 0); }
 
     int majorVer() const { return m_maj; }
@@ -86,6 +87,11 @@ private:
 private:
     int m_maj, m_min;
     bool m_unicode;
+
+    char pyarmor_aes_key[16];
+    char pyarmor_mix_str_aes_nonce[12];
+    bool pyarmor_co_code_aes_nonce_xor_enabled;
+    char pyarmor_co_code_aes_nonce_xor_key[12];
 
     PycRef<PycCode> m_code;
     std::vector<PycRef<PycString>> m_interns;
