@@ -98,4 +98,6 @@ private:
     std::vector<PycRef<PycObject>> m_refs;
 };
 
+void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, char *out_buffer);
+
 #endif

@@ -1,6 +1,7 @@
 #include "pyc_module.h"
 #include "data.h"
 #include <stdexcept>
+#include <cstring>
 
 void PycModule::setVersion(unsigned int magic)
 {
@@ -302,8 +303,8 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
 
     // For 1-shot sequence, the following part has been decrypted once.
     unsigned int code_object_offset = in.get32();
-    unsigned int co_code_aes_nonce_xor_key_procedure_length = in.get32();
-    this->pyarmor_co_code_aes_nonce_xor_enabled = (co_code_aes_nonce_xor_key_procedure_length > 0);
+    unsigned int xor_key_procedure_length = in.get32();
+    this->pyarmor_co_code_aes_nonce_xor_enabled = (xor_key_procedure_length > 0);
     unsigned int remain_second_part_length = code_object_offset - 8;
     while (remain_second_part_length)
     {
@@ -314,10 +315,145 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
 
     if (this->pyarmor_co_code_aes_nonce_xor_enabled)
     {
-        // TODO: Implement the decryption procedure.
+        char *procedure_buffer = (char *)malloc(xor_key_procedure_length);
+        in.getBuffer(xor_key_procedure_length, procedure_buffer);
+        pyarmorCoCodeAesNonceXorKeyCalculate(
+            procedure_buffer,
+            xor_key_procedure_length,
+            this->pyarmor_co_code_aes_nonce_xor_key);
     }
 
     m_code = LoadObject(&in, this).cast<PycCode>();
+}
+
+#define GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(CUR, REF) \
+    do \
+    { \
+        unsigned char _INSIDE_LOW_NIBBLE = (CUR)[1] & 0xF; \
+        if (valid_index[_INSIDE_LOW_NIBBLE] != -1) \
+        { \
+            (REF) = registers[_INSIDE_LOW_NIBBLE]; \
+            (CUR) += 2; \
+        } \
+        else \
+        { \
+            unsigned int _INSIDE_SIZE = (CUR)[1] & 0x7; \
+            if (_INSIDE_SIZE == 1) \
+            { \
+                (REF) = *(unsigned char *)((CUR) + 2); \
+                (CUR) += 3; \
+            } \
+            else if (_INSIDE_SIZE == 2) \
+            { \
+                (REF) = *(unsigned short *)((CUR) + 2); \
+                (CUR) += 4; \
+            } \
+            else \
+            { \
+                (REF) = *(unsigned int *)((CUR) + 2); \
+                (CUR) += 6; \
+            } \
+        } \
+    } while (0)
+
+void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, char *out_buffer)
+{
+    unsigned char *cur = (unsigned char *)in_buffer + 16;
+    unsigned char *end = (unsigned char *)in_buffer + in_buffer_length;
+    unsigned int registers[8] = {0};
+    const int valid_index[16] = {
+        0, 1, 2, 3, 4, 5, -1, 7 /* origin is 15 */,
+        -1, -1, -1, -1, -1, -1, -1, -1,
+    };
+
+    while (cur < end)
+    {
+        unsigned int operand_2 = 0;
+        switch (*cur)
+        {
+        case 1:
+            // terminator
+            cur++;
+            break;
+        case 2:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            registers[high_nibble] += operand_2;
+            break;
+        case 3:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            registers[high_nibble] -= operand_2;
+            break;
+        case 4:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            // TODO: Unknown
+            break;
+        case 5:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            // TODO: Unknown
+            break;
+        case 6:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            registers[high_nibble] ^= operand_2;
+            break;
+        case 7:
+            unsigned char high_nibble = cur[1] >> 4;
+            GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
+            registers[high_nibble] = operand_2;
+            break;
+        case 8:
+            // TODO: Unknown
+            cur += 2;
+            break;
+        case 9:
+            unsigned char reg = cur[1] & 0x7;
+            *(unsigned int *)out_buffer = registers[reg];
+            cur += 2;
+            break;
+        case 0xA:
+            /**
+             * This happens when 4 bytes of total 12 bytes nonce are calculated,
+             * and the result is to be stored in the memory. So the address from
+             * register 7 (15) is moved to one of the registers.
+             *
+             * We don't really care about the address and the register number.
+             * So we just skip 6 bytes (0A ... and 02 ...).
+             *
+             * For example:
+             *
+             * [0A [1F] 00] - [00][011][111] - mov  rbx<3>, [rbp<7>-18h]
+             *                               [rbp-18h] is the address
+             * [02 [39] 0C] - [0011][1][001] - add  rbx<3>, 0Ch
+             *                               0Ch is a fixed offset
+             * [09 [98]   ] - [10][011][000] - mov  [rbx<3>], eax<0>
+             *                               eax<0> is the value to be stored
+             * 
+             * Another example:
+             * 
+             * [0A [07] 00] - [00][000][111] - mov  rax<0>, [rbp<7>-18h]
+             * [02 [09] 0C] - [0000][1][001] - add  rax<0>, 0Ch
+             * [0B [83] 04] - [10][000][011] - mov  [rax<0>+4], ebx<3>
+             *                               4 means [4..8] of 12 bytes nonce
+             */
+            cur += 6;
+            break;
+        case 0xB:
+            unsigned char reg = cur[1] & 0x7;
+            unsigned char offset = cur[2];
+            *((unsigned int *)out_buffer + offset) = registers[reg];
+            cur += 3;
+            break;
+        default:
+            fprintf(stderr, "FATAL: Unknown opcode %d at %d\n", *cur, cur - (unsigned char *)in_buffer);
+            memset(out_buffer, 0, 12);
+            cur = end;
+            break;
+        }
+    }
 }
 
 PycRef<PycString> PycModule::getIntern(int ref) const
