@@ -326,49 +326,63 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
     m_code = LoadObject(&in, this).cast<PycCode>();
 }
 
-#define GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(CUR, REF) \
-    do \
-    { \
+#define GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(CUR, REF)   \
+    do                                                     \
+    {                                                      \
         unsigned char _INSIDE_LOW_NIBBLE = (CUR)[1] & 0xF; \
-        if (valid_index[_INSIDE_LOW_NIBBLE] != -1) \
-        { \
-            (REF) = registers[_INSIDE_LOW_NIBBLE]; \
-            (CUR) += 2; \
-        } \
-        else \
-        { \
-            unsigned int _INSIDE_SIZE = (CUR)[1] & 0x7; \
-            if (_INSIDE_SIZE == 1) \
-            { \
-                (REF) = *(unsigned char *)((CUR) + 2); \
-                (CUR) += 3; \
-            } \
-            else if (_INSIDE_SIZE == 2) \
-            { \
-                (REF) = *(unsigned short *)((CUR) + 2); \
-                (CUR) += 4; \
-            } \
-            else \
-            { \
-                (REF) = *(unsigned int *)((CUR) + 2); \
-                (CUR) += 6; \
-            } \
-        } \
+        if (valid_index[_INSIDE_LOW_NIBBLE] != -1)         \
+        {                                                  \
+            (REF) = registers[_INSIDE_LOW_NIBBLE];         \
+            (CUR) += 2;                                    \
+        }                                                  \
+        else                                               \
+        {                                                  \
+            unsigned int _INSIDE_SIZE = (CUR)[1] & 0x7;    \
+            if (_INSIDE_SIZE == 1)                         \
+            {                                              \
+                (REF) = *(char *)((CUR) + 2);              \
+                (CUR) += 3;                                \
+            }                                              \
+            else if (_INSIDE_SIZE == 2)                    \
+            {                                              \
+                (REF) = *(short *)((CUR) + 2);             \
+                (CUR) += 4;                                \
+            }                                              \
+            else                                           \
+            {                                              \
+                (REF) = *(int *)((CUR) + 2);               \
+                (CUR) += 6;                                \
+            }                                              \
+        }                                                  \
     } while (0)
 
 void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, char *out_buffer)
 {
     unsigned char *cur = (unsigned char *)in_buffer + 16;
     unsigned char *end = (unsigned char *)in_buffer + in_buffer_length;
-    unsigned int registers[8] = {0};
+    int registers[8] = {0};
     const int valid_index[16] = {
-        0, 1, 2, 3, 4, 5, -1, 7 /* origin is 15 */,
-        -1, -1, -1, -1, -1, -1, -1, -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        -1,
+        7, /* origin is 15 */
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
     };
 
     while (cur < end)
     {
-        unsigned int operand_2 = 0;
+        int operand_2 = 0;
         switch (*cur)
         {
         case 1:
@@ -388,12 +402,25 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
         case 4:
             unsigned char high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
-            // TODO: Unknown
+            registers[high_nibble] *= operand_2;
+            /** We found that in x86_64, machine code is
+             *     imul reg64, reg/imm
+             * so we get the low bits of the result.
+             */
             break;
         case 5:
             unsigned char high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
-            // TODO: Unknown
+            registers[high_nibble] /= operand_2;
+            /** We found that in x86_64, machine code is
+             *     mov r10d, imm32  ; when necessary
+             *     mov rax, reg64
+             *     cqo
+             *     idiv r10/reg64   ; r10/reg64 is the operand_2
+             *     mov reg64, rax
+             * so rax (0) is tampered.
+             */
+            registers[0] = registers[high_nibble];
             break;
         case 6:
             unsigned char high_nibble = cur[1] >> 4;
@@ -406,12 +433,15 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             registers[high_nibble] = operand_2;
             break;
         case 8:
-            // TODO: Unknown
+            /** We found that in x86_64, machine code is
+             *     mov reg1, ptr [reg2]
+             * This hardly happens.
+             */
             cur += 2;
             break;
         case 9:
             unsigned char reg = cur[1] & 0x7;
-            *(unsigned int *)out_buffer = registers[reg];
+            *(int *)out_buffer = registers[reg];
             cur += 2;
             break;
         case 0xA:
@@ -431,9 +461,9 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
              *                               0Ch is a fixed offset
              * [09 [98]   ] - [10][011][000] - mov  [rbx<3>], eax<0>
              *                               eax<0> is the value to be stored
-             * 
+             *
              * Another example:
-             * 
+             *
              * [0A [07] 00] - [00][000][111] - mov  rax<0>, [rbp<7>-18h]
              * [02 [09] 0C] - [0000][1][001] - add  rax<0>, 0Ch
              * [0B [83] 04] - [10][000][011] - mov  [rax<0>+4], ebx<3>
@@ -443,8 +473,8 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             break;
         case 0xB:
             unsigned char reg = cur[1] & 0x7;
-            unsigned char offset = cur[2];
-            *((unsigned int *)out_buffer + offset) = registers[reg];
+            char offset = cur[2];
+            *((int *)out_buffer + offset) = registers[reg];
             cur += 3;
             break;
         default:
