@@ -4,7 +4,7 @@
 
 Generally this project aims to statically convert (without executing) armored data - which can be regarded as an encrypted variant of pyc files - back to disassembly and (experimentally) source code. Therefore we forked the awesome [Decompyle++](https://github.com/zrax/pycdc) (aka pycdc).
 
-Currently we are trying to support Pyarmor 8.0 - latest (9.0.8), Python 3.6 - 3.13, platforms covering Windows, Linux, macOS, and Android, with obfuscating options as many as possible. (However, we only have limited tests.)
+Currently we are trying to support Pyarmor 8.0 - latest (9.1.0), Python 3.7 - 3.13, platforms covering Windows, Linux, macOS, and Android, with obfuscating options as many as possible. (However, we only have limited tests.)
 
 We cannot wait to make it public. Detailed write-up will be available soon. For those who are curious, temporarily you can check out [the similar work of G DATA Advanced Analytics](https://cyber.wtf/2025/02/12/unpacking-pyarmor-v8-scripts/).
 

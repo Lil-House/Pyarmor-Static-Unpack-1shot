@@ -64,11 +64,14 @@ void PycCode::load(PycData* stream, PycModule* mod)
     else
         m_flags = 0;
 
+    bool pyarmor_co_obfuscated_flag = m_flags & 0x20000000;
+
     if (mod->verCompare(3, 8) < 0) {
         // Remap flags to new values introduced in 3.8
-        if (m_flags & 0xF0000000)
-            throw std::runtime_error("Cannot remap unexpected flags");
-        m_flags = (m_flags & 0xFFFF) | ((m_flags & 0xFFF0000) << 4);
+        // Pyarmor CO_OBFUSCATED flag always locates at 0x20000000
+        if (m_flags & 0xD0000000)
+            fprintf(stderr, "Remapping flags (%08X) may not be correct\n", m_flags);
+        m_flags = (m_flags & 0x1FFF) | ((m_flags & 0xFFFE000) << 4) | (m_flags & 0x20000000);
     }
 
     m_code = LoadObject(stream, mod).cast<PycString>();

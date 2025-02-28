@@ -104,7 +104,7 @@ void output_object(PycRef<PycObject> obj, PycModule* mod, int indent,
                 unsigned int orig_flags = codeObj->flags();
                 if (mod->verCompare(3, 8) < 0) {
                     // Remap flags back to the value stored in the PyCode object
-                    orig_flags = (orig_flags & 0xFFFF) | ((orig_flags & 0xFFF00000) >> 4);
+                    orig_flags = (orig_flags & 0x1FFF) | ((orig_flags & 0xDFFE0000) >> 4) | (orig_flags & 0x20000000);
                 }
                 iprintf(pyc_output, indent + 1, "Flags: 0x%08X", orig_flags);
                 print_coflags(codeObj->flags(), pyc_output);

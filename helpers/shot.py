@@ -101,7 +101,7 @@ def main():
     )
     logger = logging.getLogger('shot')
 
-    print('''
+    print(r'''
  ____                                                                     ____ 
 ( __ )                                                                   ( __ )
  |  |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|  | 
@@ -157,8 +157,12 @@ def main():
                 except:
                     pass
 
-            with open(file_path, 'rb') as f:
-                beacon = f.read(16 * 1024 * 1024)
+            try:
+                with open(file_path, 'rb') as f:
+                    beacon = f.read(16 * 1024 * 1024)
+            except:
+                logger.error(f'Failed to read file: {relative_path}')
+                continue
 
             # is UTF-8 source?
             # TODO: only support natural one line now

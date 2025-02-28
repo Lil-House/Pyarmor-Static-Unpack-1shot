@@ -36,8 +36,7 @@ public:
         CO_FUTURE_ANNOTATIONS = 0x1000000,                  // 3.7 ->
         CO_NO_MONITORING_EVENTS = 0x2000000,                // 3.13 ->
 
-        // TODO: Shift things
-        CO_PYARMOR_OBFUSCATED = 0x20000000,
+        CO_PYARMOR_OBFUSCATED = 0x20000000,                 // Pyarmor all
     };
 
     PycCode(int type = TYPE_CODE)
