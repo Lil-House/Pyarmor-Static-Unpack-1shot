@@ -356,7 +356,7 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
         }                                                  \
     } while (0)
 
-void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, char *out_buffer)
+void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, unsigned char *out_buffer)
 {
     unsigned char *cur = (unsigned char *)in_buffer + 16;
     unsigned char *end = (unsigned char *)in_buffer + in_buffer_length;

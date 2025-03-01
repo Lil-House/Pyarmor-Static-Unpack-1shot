@@ -81,6 +81,11 @@ public:
 
     static bool isSupportedVersion(int major, int minor);
 
+    unsigned char pyarmor_aes_key[16];
+    unsigned char pyarmor_mix_str_aes_nonce[12];
+    bool pyarmor_co_code_aes_nonce_xor_enabled;
+    unsigned char pyarmor_co_code_aes_nonce_xor_key[12];
+
 private:
     void setVersion(unsigned int magic);
 
@@ -88,16 +93,11 @@ private:
     int m_maj, m_min;
     bool m_unicode;
 
-    char pyarmor_aes_key[16];
-    char pyarmor_mix_str_aes_nonce[12];
-    bool pyarmor_co_code_aes_nonce_xor_enabled;
-    char pyarmor_co_code_aes_nonce_xor_key[12];
-
     PycRef<PycCode> m_code;
     std::vector<PycRef<PycString>> m_interns;
     std::vector<PycRef<PycObject>> m_refs;
 };
 
-void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, char *out_buffer);
+void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in_buffer_length, unsigned char *out_buffer);
 
 #endif

@@ -62,6 +62,9 @@ class RuntimeInfo:
             data = f.read(16 * 1024 * 1024)
         cur = data.index(b'pyarmor-vax')
 
+        if data[cur+11:cur+18] == b'\x00' * 7:
+            raise ValueError(f'{self.file_path} is a runtime template')
+
         self.part_1 = data[cur:cur+20]
 
         cur += 36

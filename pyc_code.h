@@ -8,6 +8,16 @@
 class PycData;
 class PycModule;
 
+struct PyarmorCoDescriptor
+{
+    unsigned char flags;
+    unsigned char short_nonce_index;
+    unsigned char _;
+    unsigned char decrypt_begin_index;
+    unsigned int decrypt_length;
+    unsigned int _enter_count;
+};
+
 class PycCode : public PycObject {
 public:
     typedef std::vector<PycRef<PycString>> globals_t;
@@ -44,6 +54,8 @@ public:
           m_numLocals(), m_stackSize(), m_flags(), m_firstLine() { }
 
     void load(PycData* stream, PycModule* mod) override;
+
+    void pyarmorDecryptCoCode(unsigned long consts_index, PycModule *mod);
 
     int argCount() const { return m_argCount; }
     int posOnlyArgCount() const { return m_posOnlyArgCount; }
