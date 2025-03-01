@@ -321,6 +321,7 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
             procedure_buffer,
             xor_key_procedure_length,
             this->pyarmor_co_code_aes_nonce_xor_key);
+        free(procedure_buffer);
     }
 
     m_code = LoadObject(&in, this).cast<PycCode>();
@@ -383,6 +384,8 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
     while (cur < end)
     {
         int operand_2 = 0;
+        unsigned char high_nibble = 0;
+        unsigned char reg = 0;
         switch (*cur)
         {
         case 1:
@@ -390,17 +393,17 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             cur++;
             break;
         case 2:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] += operand_2;
             break;
         case 3:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] -= operand_2;
             break;
         case 4:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] *= operand_2;
             /** We found that in x86_64, machine code is
@@ -409,7 +412,7 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
              */
             break;
         case 5:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] /= operand_2;
             /** We found that in x86_64, machine code is
@@ -423,12 +426,12 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             registers[0] = registers[high_nibble];
             break;
         case 6:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] ^= operand_2;
             break;
         case 7:
-            unsigned char high_nibble = cur[1] >> 4;
+            high_nibble = cur[1] >> 4;
             GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(cur, operand_2);
             registers[high_nibble] = operand_2;
             break;
@@ -440,7 +443,7 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             cur += 2;
             break;
         case 9:
-            unsigned char reg = cur[1] & 0x7;
+            reg = cur[1] & 0x7;
             *(int *)out_buffer = registers[reg];
             cur += 2;
             break;
@@ -472,13 +475,12 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             cur += 6;
             break;
         case 0xB:
-            unsigned char reg = cur[1] & 0x7;
-            char offset = cur[2];
-            *((int *)out_buffer + offset) = registers[reg];
+            reg = cur[1] & 0x7;
+            *(int *)(out_buffer + cur[2]) = registers[reg];
             cur += 3;
             break;
         default:
-            fprintf(stderr, "FATAL: Unknown opcode %d at %d\n", *cur, cur - (unsigned char *)in_buffer);
+            fprintf(stderr, "FATAL: Unknown opcode %d at %lld\n", *cur, cur - (unsigned char *)in_buffer);
             memset(out_buffer, 0, 12);
             cur = end;
             break;
