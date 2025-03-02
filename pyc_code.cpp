@@ -140,7 +140,7 @@ void PycCode::load(PycData* stream, PycModule* mod)
     }
     if (pyarmor_co_descriptor_count > 1)
     {
-        fprintf(stderr, "Unsupport multiple Pyarmor CO descriptors (%d in total)\n", pyarmor_co_descriptor_count);
+        fprintf(stderr, "Do not support multiple Pyarmor CO descriptors (%d in total)\n", pyarmor_co_descriptor_count);
         fprintf(stderr, "Please open an issue at https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues to request support and help to make this tool better.\n");
     }
 

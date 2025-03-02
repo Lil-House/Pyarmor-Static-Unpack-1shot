@@ -64,22 +64,8 @@ add_library(pycxx STATIC
     bytes/python_3_13.cpp
 )
 
-add_executable(pycdas pycdas.cpp)
-target_link_libraries(pycdas pycxx)
+add_executable(pyarmor-1shot pyarmor-1shot.cpp ASTree.cpp ASTNode.cpp)
+target_link_libraries(pyarmor-1shot pycxx)
 
-install(TARGETS pycdas
+install(TARGETS pyarmor-1shot
     RUNTIME DESTINATION bin)
-
-add_executable(pycdc pycdc.cpp ASTree.cpp ASTNode.cpp)
-target_link_libraries(pycdc pycxx)
-
-install(TARGETS pycdc
-    RUNTIME DESTINATION bin)
-
-find_package(Python3 3.6 COMPONENTS Interpreter)
-if(Python3_FOUND)
-    add_custom_target(check
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py"
-        WORKING_DIRECTORY "$<TARGET_FILE_DIR:pycdc>")
-    add_dependencies(check pycdc)
-endif()

@@ -6,3 +6,8 @@
 /.kdev4
 __pycache__
 tests-out
+
+.vscode/
+build/
+pyarmor-1shot
+pyarmor-1shot.exe
