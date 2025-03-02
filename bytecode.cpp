@@ -116,7 +116,7 @@ int Pyc::ByteToOpcode(int maj, int min, int opcode)
 }
 
 void print_const(std::ostream& pyc_output, PycRef<PycObject> obj, PycModule* mod,
-                 const char* parent_f_string_quote)
+                 const char* parent_f_string_quote, bool das_decrypt_print)
 {
     if (obj == NULL) {
         pyc_output << "<NULL>";
@@ -131,7 +131,9 @@ void print_const(std::ostream& pyc_output, PycRef<PycObject> obj, PycModule* mod
     case PycObject::TYPE_ASCII_INTERNED:
     case PycObject::TYPE_SHORT_ASCII:
     case PycObject::TYPE_SHORT_ASCII_INTERNED:
-        obj.cast<PycString>()->print(pyc_output, mod, false, parent_f_string_quote);
+        das_decrypt_print
+            ? obj.cast<PycString>()->dasPrintAndDecrypt(pyc_output, mod, false, parent_f_string_quote)
+            : obj.cast<PycString>()->print(pyc_output, mod, false, parent_f_string_quote);
         break;
     case PycObject::TYPE_TUPLE:
     case PycObject::TYPE_SMALL_TUPLE:
@@ -362,7 +364,7 @@ void bc_disasm(std::ostream& pyc_output, PycRef<PycCode> code, PycModule* mod,
                 try {
                     auto constParam = code->getConst(operand);
                     formatted_print(pyc_output, "%d: ", operand);
-                    print_const(pyc_output, constParam, mod);
+                    print_const(pyc_output, constParam, mod, nullptr, true);
                 } catch (const std::out_of_range &) {
                     formatted_print(pyc_output, "%d <INVALID>", operand);
                 }

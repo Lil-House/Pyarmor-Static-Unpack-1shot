@@ -15,8 +15,9 @@ def general_aes_ctr_decrypt(data: bytes, key: bytes, nonce: bytes) -> bytes:
     return cipher.decrypt(data)
 
 
-def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str, bytes]], output_dir: str = None):
+def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str, bytes]], args):
     logger = logging.getLogger('shot')
+    output_dir: str = args.output_dir or args.directory
     for path, data in sequences:
         try:
             serial_number = data[2:8].decode('utf-8')
@@ -28,8 +29,9 @@ def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str,
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
 
-            with open(dest_path + '.1shot.raw', 'wb') as f:
-                f.write(data)
+            if args.export_raw_data:
+                with open(dest_path + '.1shot.raw', 'wb') as f:
+                    f.write(data)
 
             cipher_text_offset = int.from_bytes(data[28:32], 'little')
             cipher_text_length = int.from_bytes(data[32:36], 'little')
@@ -63,7 +65,7 @@ def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str,
             for line in stderr:
                 if line.startswith('Warning'):
                     logger.warning(f'STDERR {line} ({path})')
-                else:
+                elif not line.startswith('Unsupported opcode:') or args.show_err_opcode:
                     logger.error(f'STDERR {line} ({path})')
         except Exception as e:
             logger.error(f'Decrypt failed: {e} ({path})')
@@ -89,6 +91,16 @@ def parse_args():
         '--output-dir',
         help='save output files in another directory instead of in-place, with folder structure remain unchanged',
         type=str,
+    )
+    parser.add_argument(
+        '--export-raw-data',
+        help='save data found in source files as-is',
+        action='store_true',
+    )
+    parser.add_argument(
+        '--show-err-opcode',
+        help='show pycdc unsupported opcode error',
+        action='store_true',
     )
     return parser.parse_args()
 
@@ -145,8 +157,7 @@ def main():
             if not handled \
                     and specified_runtime is None \
                     and file_name.startswith('pyarmor_runtime') \
-                    and not file_name.endswith(('.lnk', '.i64', '.idb', '.id0', '.id1',
-                                                '.id2', '.nam', '.til', '.bak')):
+                    and file_name.endswith(('.pyd', '.so', '.dylib')):
                 try:
                     new_runtime = RuntimeInfo(file_path)
                     runtimes[new_runtime.serial_number] = new_runtime
@@ -189,7 +200,7 @@ def main():
             # TODO: is pyc or single marshalled binary?
 
     # print(runtimes, [(i[0], i[1][:16]) for i in sequences], args.output_dir or args.directory)
-    decrypt_process(runtimes, sequences, args.output_dir or args.directory)
+    decrypt_process(runtimes, sequences, args)
 
 
 if __name__ == '__main__':

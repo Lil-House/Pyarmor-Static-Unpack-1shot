@@ -30,6 +30,10 @@ public:
     void print(std::ostream& stream, class PycModule* mod, bool triple = false,
                const char* parent_f_string_quote = nullptr);
 
+    void dasPrintAndDecrypt(std::ostream& stream, class PycModule* mod,
+               bool triple = false,
+               const char* parent_f_string_quote = nullptr);
+
 private:
     std::string m_value;
 };

@@ -2,6 +2,7 @@
 #include "pyc_module.h"
 #include "data.h"
 #include <stdexcept>
+#include "plusaes.hpp"
 
 static bool check_ascii(const std::string& data)
 {
@@ -153,4 +154,29 @@ void PycString::print(std::ostream &pyc_output, PycModule* mod, bool triple,
         else
             pyc_output << (useQuotes ? '"' : '\'');
     }
+}
+
+void PycString::dasPrintAndDecrypt(std::ostream &stream, PycModule *mod, bool triple, const char *parent_f_string_quote)
+{
+    if (m_value.empty() || !(m_value[0] & 0x80)
+            || (m_value[0] & 0x7F) == 0 || (m_value[0] & 0x7F) > 4)
+        return print(stream, mod, triple, parent_f_string_quote);
+
+    std::string result(m_value.substr(1));
+    unsigned char nonce[16] = {0};
+    memcpy(nonce, mod->pyarmor_mix_str_aes_nonce, 12);
+    nonce[15] = 2;
+
+    plusaes::crypt_ctr(
+        (unsigned char *)&result[0],
+        result.length(),
+        mod->pyarmor_aes_key,
+        16,
+        &nonce);
+    
+    PycString decrypted(TYPE_UNICODE);
+    decrypted.setValue(result);
+    decrypted.print(stream, mod, triple, parent_f_string_quote);
+    stream << "   # ";
+    print(stream, mod, triple, parent_f_string_quote);
 }

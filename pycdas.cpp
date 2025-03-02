@@ -165,7 +165,7 @@ void output_object(PycRef<PycObject> obj, PycModule* mod, int indent,
     case PycObject::TYPE_SHORT_ASCII:
     case PycObject::TYPE_SHORT_ASCII_INTERNED:
         iputs(pyc_output, indent, "");
-        obj.cast<PycString>()->print(pyc_output, mod);
+        obj.cast<PycString>()->dasPrintAndDecrypt(pyc_output, mod);
         pyc_output << "\n";
         break;
     case PycObject::TYPE_TUPLE:
