@@ -5,6 +5,7 @@
 #include "FastStack.h"
 #include "pyc_numeric.h"
 #include "bytecode.h"
+#include "plusaes.hpp"
 
 // This must be a triple quote (''' or """), to handle interpolated string literals containing the opposite quote style.
 // E.g. f'''{"interpolated "123' literal"}'''    -> valid.
@@ -70,6 +71,138 @@ static void CheckIfExpr(FastStack& stack, PycRef<ASTBlock> curblock)
     auto if_expr = StackPopTop(stack);
     curblock->removeLast();
     stack.push(new ASTTernary(std::move(if_block), std::move(if_expr), std::move(else_expr)));
+}
+
+PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *mod)
+{
+    std::string result(inputString.substr(1));
+    if (inputString[0] & 0x80)
+    {
+        unsigned char nonce[16] = {0};
+        memcpy(nonce, mod->pyarmor_mix_str_aes_nonce, 12);
+        nonce[15] = 2;
+
+        plusaes::crypt_ctr(
+            (unsigned char *)&result[0],
+            result.length(),
+            mod->pyarmor_aes_key,
+            16,
+            &nonce);
+    }
+    switch (inputString[0] & 0x7F)
+    {
+    case 1:
+    {
+        PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
+        new_str->setValue(result);
+        return new ASTObject(new_str.cast<PycObject>());
+    }
+    case 2:
+    {
+        PycBuffer buf(result.data(), result.length());
+        return new ASTObject(LoadObject(&buf, mod));
+    }
+    case 3:
+    {
+        PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
+        new_str->setValue(result);
+        return new ASTImport(new ASTName(new_str), nullptr);
+    }
+    case 4:
+    default:
+    {
+        fprintf(stderr, "Unknown PyarmorAssert string first byte: %d\n", inputString[0] & 0x7F);
+        PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
+        new_str->setValue((char)(inputString[0] & 0x7F) + result);
+        return new ASTObject(new_str.cast<PycObject>());
+    }
+    }
+}
+
+void CallOrPyarmorBuiltins(FastStack &stack, PycRef<ASTBlock> &curblock, PycModule *mod)
+{
+    PycRef<ASTNode> top = stack.top();
+    if (top->type() != ASTNode::NODE_CALL)
+        return;
+
+    PycRef<ASTCall> call = top.cast<ASTCall>();
+    if (call->func().type() != ASTNode::NODE_OBJECT)
+        return;
+
+    PycRef<PycObject> func_name_obj = call->func().cast<ASTObject>()->object();
+    if (func_name_obj.try_cast<PycString>() == nullptr)
+        return;
+
+    if (!func_name_obj.cast<PycString>()->startsWith("__pyarmor_"))
+        return;
+
+    const std::string& name = func_name_obj.cast<PycString>()->strValue();
+    if (name.find("__pyarmor_assert_") == std::string::npos)
+    {
+        PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
+        new_str->setValue(name + "(...)");
+        stack.pop();
+        stack.push(new ASTObject(new_str.cast<PycObject>()));
+        // str '__pyarmor_enter_12345__(...)'
+        return;
+    }
+
+    if (call->pparams().size() != 1)  // pyarmor_assert takes exactly one parameter
+        return;
+    
+    const auto& param = call->pparams().front();
+    if (param.type() == ASTNode::NODE_OBJECT)
+    {
+        PycRef<PycObject> obj = param.cast<ASTObject>()->object();
+        if (obj.try_cast<PycString>() == nullptr)
+            return;
+        PycRef<ASTNode> new_node = PyarmorMixStrDecrypt(obj.cast<PycString>()->strValue(), mod);
+        stack.pop();
+        stack.push(new_node);
+        // result of __pyarmor_assert__(b'something')
+        return;
+    }
+    
+    if (param.type() == ASTNode::NODE_TUPLE)
+    {
+        const auto &tuple = param.cast<ASTTuple>();
+        if (tuple->values().size() <= 1 || tuple->values().size() > 3)
+            return;
+        if (tuple->values()[1].type() != ASTNode::NODE_OBJECT)
+            return;
+        auto enc_str = tuple->values()[1].cast<ASTObject>()->object().try_cast<PycString>();
+        if (enc_str == nullptr)
+            return;
+        PycRef<ASTNode> attr_name = PyarmorMixStrDecrypt(enc_str->strValue(), mod);
+        if (attr_name->type() != ASTNode::NODE_OBJECT)
+            return;
+        auto name_str = attr_name.cast<ASTObject>()->object().try_cast<PycString>();
+        if (name_str == nullptr)
+            return;
+        PycRef<ASTNode> attr_ref = new ASTBinary(tuple->values()[0], new ASTName(name_str), ASTBinary::BIN_ATTR);
+        if (tuple->values().size() == 2)
+        {
+            stack.pop();
+            stack.push(attr_ref);
+            // __pyarmor_assert__((from, b'enc_attr')) -> from.enc_attr
+            return;
+        }
+        else if (tuple->values().size() == 3)
+        {
+            stack.pop();
+            curblock->append(new ASTStore(tuple->values()[2], attr_ref));
+            // __pyarmor_assert__((from, b'enc_attr', value)) -> from.enc_attr = value
+            return;
+        }
+    }
+
+    if (param.type() == ASTNode::NODE_NAME)
+    {
+        stack.pop();
+        stack.push(param);
+        // __pyarmor_assert__(name) -> name
+        return;
+    }
 }
 
 PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
@@ -521,6 +654,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 }
 
                 stack.push(new ASTCall(func, pparamList, kwparamList));
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
         case Pyc::CALL_FUNCTION_VAR_A:
@@ -548,6 +683,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 PycRef<ASTNode> call = new ASTCall(func, pparamList, kwparamList);
                 call.cast<ASTCall>()->setVar(var);
                 stack.push(call);
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
         case Pyc::CALL_FUNCTION_KW_A:
@@ -575,6 +712,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 PycRef<ASTNode> call = new ASTCall(func, pparamList, kwparamList);
                 call.cast<ASTCall>()->setKW(kw);
                 stack.push(call);
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
         case Pyc::CALL_FUNCTION_VAR_KW_A:
@@ -605,6 +744,30 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 call.cast<ASTCall>()->setKW(kw);
                 call.cast<ASTCall>()->setVar(var);
                 stack.push(call);
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
+            }
+            break;
+        case Pyc::CALL_FUNCTION_EX_A:
+            {
+                PycRef<ASTNode> kw;
+                if (operand & 0x01)
+                {
+                    kw = stack.top();
+                    stack.pop();
+                }
+                PycRef<ASTNode> var = stack.top();
+                stack.pop();
+                PycRef<ASTNode> func = stack.top();
+                stack.pop();
+
+                PycRef<ASTNode> call = new ASTCall(func, ASTCall::pparam_t(), ASTCall::kwparam_t());
+                if (operand & 0x01)
+                    call.cast<ASTCall>()->setKW(kw);
+                call.cast<ASTCall>()->setVar(var);
+                stack.push(call);
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
         case Pyc::CALL_METHOD_A:
@@ -633,6 +796,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 PycRef<ASTNode> func = stack.top();
                 stack.pop();
                 stack.push(new ASTCall(func, pparamList, ASTCall::kwparam_t()));
+
+                CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
         case Pyc::CONTINUE_LOOP_A:
@@ -1307,6 +1472,16 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 bool push = true;
 
                 do {
+                    // A polyfill for Pyarmor which jumps forward on top level scope
+                    auto &top = blocks.top();
+                    if (top == defblock) {
+                        pos += offs;
+                        for (int i = 0; i < offs; i++) {
+                            source.getByte();
+                        }
+                        break;
+                    }
+
                     blocks.pop();
 
                     if (!blocks.empty())
@@ -2474,7 +2649,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             }
             break;
         default:
-            fprintf(stderr, "Unsupported opcode: %s (%d)\n", Pyc::OpcodeName(opcode), opcode);
+            fprintf(stderr, "Unsupported opcode: %s (%d) at %s\n", Pyc::OpcodeName(opcode), opcode, code->qualName()->value());
             cleanBuild = false;
             return new ASTNodeList(defblock->nodes());
         }
