@@ -99,7 +99,7 @@ PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *
     }
     case 2:
     {
-        PycBuffer buf(result.data(), result.length());
+        PycBuffer buf(result.data(), (int)result.length());
         return new ASTObject(LoadObject(&buf, mod));
     }
     case 3:

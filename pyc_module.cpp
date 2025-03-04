@@ -480,7 +480,7 @@ void pyarmorCoCodeAesNonceXorKeyCalculate(const char *in_buffer, unsigned int in
             cur += 3;
             break;
         default:
-            fprintf(stderr, "FATAL: Unknown opcode %d at %lld\n", *cur, cur - (unsigned char *)in_buffer);
+            fprintf(stderr, "FATAL: Unknown opcode %d at %lld\n", *cur, (long long)(cur - (unsigned char *)in_buffer));
             memset(out_buffer, 0, 12);
             cur = end;
             break;
