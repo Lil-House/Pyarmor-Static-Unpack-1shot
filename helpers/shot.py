@@ -3,6 +3,7 @@ from Crypto.Cipher import AES
 import logging
 import os
 import subprocess
+from typing import Dict, List, Tuple
 
 from runtime import RuntimeInfo
 
@@ -15,7 +16,7 @@ def general_aes_ctr_decrypt(data: bytes, key: bytes, nonce: bytes) -> bytes:
     return cipher.decrypt(data)
 
 
-def decrypt_process(runtimes: dict[str, RuntimeInfo], sequences: list[tuple[str, bytes]], args):
+def decrypt_process(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str, bytes]], args):
     logger = logging.getLogger('shot')
     output_dir: str = args.output_dir or args.directory
     for path, data in sequences:
@@ -134,14 +135,14 @@ def main():
         specified_runtime = None
         runtimes = {}
 
-    sequences: list[tuple[str, bytes]] = []
+    sequences: List[Tuple[str, bytes]] = []
 
     if args.output_dir and not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
     dir_path: str
-    dirs: list[str]
-    files: list[str]
+    dirs: List[str]
+    files: List[str]
     for dir_path, dirs, files in os.walk(args.directory, followlinks=False):
         for d in ['__pycache__', 'site-packages']:
             if d in dirs:
