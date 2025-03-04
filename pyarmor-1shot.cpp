@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
         } else if (strcmp(argv[arg], "--show-caches") == 0) {
             disasm_flags |= Pyc::DISASM_SHOW_CACHES;
         } else if (strcmp(argv[arg], "--help") == 0 || strcmp(argv[arg], "-h") == 0) {
-            fprintf(stderr, "Usage:  %s [options] input.pyc\n\n", argv[0]);
+            fprintf(stderr, "Usage:  %s [options] input.1shot.seq\n\n", argv[0]);
             fputs("Options:\n", stderr);
             fputs("  --pycode-extra Show extra fields in PyCode object dumps\n", stderr);
             fputs("  --show-caches  Don't suprress CACHE instructions in Python 3.11+ disassembly\n", stderr);
