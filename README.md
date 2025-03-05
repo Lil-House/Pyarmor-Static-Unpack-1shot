@@ -15,7 +15,7 @@ mkdir build
 cd build
 cmake ..
 cmake --build .
-mv pyarmor-1shot[.exe] ../helpers
+cmake --install .
 ```
 
 ## Usage

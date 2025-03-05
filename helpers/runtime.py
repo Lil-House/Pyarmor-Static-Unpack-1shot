@@ -44,7 +44,7 @@ class RuntimeInfo:
                 break
         return f'''\
         ========================
-        PyArmor Runtime ({'Trial' if trial else self.serial_number}) Information:
+        Pyarmor Runtime ({'Trial' if trial else self.serial_number}) Information:
         Product: {product}
         AES key: {self.runtime_aes_key.hex()}
         Mix string AES nonce: {self.mix_str_aes_nonce().hex()}

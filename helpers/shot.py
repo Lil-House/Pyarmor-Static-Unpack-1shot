@@ -126,6 +126,9 @@ def main():
  |  |         |__/                                                        |  | 
  |__|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|__| 
 (____)                                                                   (____)
+
+              For technology exchange only. Use at your own risk.
+        GitHub: https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot
 ''')
 
     if args.runtime:
@@ -200,7 +203,12 @@ def main():
             # TODO: is Nuitka package?
             # TODO: is pyc or single marshalled binary?
 
-    # print(runtimes, [(i[0], i[1][:16]) for i in sequences], args.output_dir or args.directory)
+    if not runtimes:
+        logger.error('No runtime found')
+        return
+    if not sequences:
+        logger.error('No armored data found')
+        return
     decrypt_process(runtimes, sequences, args)
 
 

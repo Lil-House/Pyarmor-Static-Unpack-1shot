@@ -178,7 +178,7 @@ void PycCode::pyarmorDecryptCoCode(unsigned long consts_index, PycModule *mod)
         return;
     }
 
-    PyarmorCoDescriptor *desc = (PyarmorCoDescriptor *)(descriptor_str.data() + 8);
+    const PyarmorCoDescriptor *desc = (const PyarmorCoDescriptor *)(descriptor_str.data() + 8);
     bool copy_prologue = desc->flags & 0x8;
     bool xor_aes_nonce = desc->flags & 0x4;
     bool short_code = desc->flags & 0x2;

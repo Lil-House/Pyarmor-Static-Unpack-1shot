@@ -22,7 +22,10 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(pycxx STATIC
+add_executable(pyarmor-1shot
+    pyarmor-1shot.cpp
+    ASTree.cpp
+    ASTNode.cpp
     bytecode.cpp
     data.cpp
     pyc_code.cpp
@@ -61,8 +64,5 @@ add_library(pycxx STATIC
     bytes/python_3_13.cpp
 )
 
-add_executable(pyarmor-1shot pyarmor-1shot.cpp ASTree.cpp ASTNode.cpp)
-target_link_libraries(pyarmor-1shot pycxx)
-
 install(TARGETS pyarmor-1shot
-    RUNTIME DESTINATION bin)
+    RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/helpers)
