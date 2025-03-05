@@ -66,13 +66,16 @@ def decrypt_process(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str,
             for line in stderr:
                 if line.startswith((
                     'Warning: Stack history is empty',
-                    'Warning: Stack history is not empty!',
-                    'Warning: block stack is not empty!',
+                    'Warning: Stack history is not empty',
+                    'Warning: block stack is not empty',
                 )):
                     if args.show_warn_stack or args.show_all:
                         logger.warning(f'PYCDC: {line} ({path})')
                 elif line.startswith('Unsupported opcode:'):
                     if args.show_err_opcode or args.show_all:
+                        logger.error(f'PYCDC: {line} ({path})')
+                elif line.startswith('Something TERRIBLE happened'):
+                    if args.show_all:
                         logger.error(f'PYCDC: {line} ({path})')
                 else:
                     logger.error(f'PYCDC: {line} ({path})')

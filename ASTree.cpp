@@ -765,6 +765,10 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 stack.pop();
                 PycRef<ASTNode> func = stack.top();
                 stack.pop();
+                if (stack.top() == nullptr)
+                {
+                    stack.pop();
+                }
 
                 PycRef<ASTNode> call = new ASTCall(func, ASTCall::pparam_t(), ASTCall::kwparam_t());
                 if (operand & 0x01)
@@ -1560,7 +1564,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                                 blocks.push(except);
                             }
                         } else {
-                            fprintf(stderr, "Something TERRIBLE happened!!\n");
+                            fprintf(stderr, "Something TERRIBLE happened!! at %s\n",
+                                mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
                         }
                         prev = nil;
                     } else {
@@ -1792,7 +1797,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                         stack = stack_hist.top();
                         stack_hist.pop();
                     } else {
-                        fprintf(stderr, "Warning: Stack history is empty, something wrong might have happened\n");
+                        fprintf(stderr, "Warning: Stack history is empty, something wrong might have happened at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
                     }
                 }
                 PycRef<ASTBlock> tmp = curblock;
@@ -2076,7 +2082,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 stack.pop();
 
                 if (none != NULL) {
-                    fprintf(stderr, "Something TERRIBLE happened!\n");
+                    fprintf(stderr, "Something TERRIBLE happened! at %s\n", 
+                        mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
                     break;
                 }
 
@@ -2184,7 +2191,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(attr);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2219,7 +2227,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(name);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2259,7 +2268,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(name);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2318,7 +2328,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(name);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2360,7 +2371,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(name);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2481,7 +2493,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     if (tup.type() == ASTNode::NODE_TUPLE)
                         tup.cast<ASTTuple>()->add(save);
                     else
-                        fputs("Something TERRIBLE happened!\n", stderr);
+                        fprintf(stderr, "Something TERRIBLE happened! at %s\n",
+                            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
                     if (--unpack <= 0) {
                         stack.pop();
@@ -2661,6 +2674,24 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             break;
         // BEGIN ONESHOT TEMPORARY PATCH
         // These opcodes are not implemented
+        case Pyc::COPY_A:
+            {
+                FastStack tmp_stack(20);
+                for (int i = 0; i < operand - 1; i++) {
+                    tmp_stack.push(stack.top());
+                    stack.pop();
+                }
+                auto value = stack.top();
+                for (int i = 0; i < operand - 1; i++) {
+                    stack.push(tmp_stack.top());
+                    tmp_stack.pop();
+                }
+                stack.push(value);
+            }
+        case Pyc::PUSH_EXC_INFO:
+            {
+                stack.push(stack.top());
+            }
         case Pyc::JUMP_IF_NOT_EXC_MATCH_A:
             {
                 PycRef<ASTNode> ex_type = stack.top();
@@ -2688,7 +2719,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
     }
 
     if (stack_hist.size()) {
-        fputs("Warning: Stack history is not empty!\n", stderr);
+        fprintf(stderr, "Warning: Stack history is not empty! at %s\n",
+            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
         while (stack_hist.size()) {
             stack_hist.pop();
@@ -2696,7 +2728,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
     }
 
     if (blocks.size() > 1) {
-        fputs("Warning: block stack is not empty!\n", stderr);
+        fprintf(stderr, "Warning: block stack is not empty! at %s\n",
+            mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
 
         while (blocks.size() > 1) {
             PycRef<ASTBlock> tmp = blocks.top();
