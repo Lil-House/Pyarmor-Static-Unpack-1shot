@@ -121,22 +121,18 @@ PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *
 
 void CallOrPyarmorBuiltins(FastStack &stack, PycRef<ASTBlock> &curblock, PycModule *mod)
 {
-    PycRef<ASTNode> top = stack.top();
-    if (top->type() != ASTNode::NODE_CALL)
+    if (stack.empty() || stack.top()->type() != ASTNode::NODE_CALL)
         return;
 
-    PycRef<ASTCall> call = top.cast<ASTCall>();
+    PycRef<ASTCall> call = stack.top().cast<ASTCall>();
     if (call->func().type() != ASTNode::NODE_OBJECT)
         return;
 
-    PycRef<PycObject> func_name_obj = call->func().cast<ASTObject>()->object();
-    if (func_name_obj.try_cast<PycString>() == nullptr)
+    PycRef<PycString> func_name = call->func().cast<ASTObject>()->object().try_cast<PycString>();
+    if (func_name == nullptr || !func_name->startsWith("__pyarmor_"))
         return;
 
-    if (!func_name_obj.cast<PycString>()->startsWith("__pyarmor_"))
-        return;
-
-    const std::string& name = func_name_obj.cast<PycString>()->strValue();
+    const std::string& name = func_name->strValue();
     if (name.find("__pyarmor_assert_") == std::string::npos)
     {
         PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
@@ -153,10 +149,10 @@ void CallOrPyarmorBuiltins(FastStack &stack, PycRef<ASTBlock> &curblock, PycModu
     const auto& param = call->pparams().front();
     if (param.type() == ASTNode::NODE_OBJECT)
     {
-        PycRef<PycObject> obj = param.cast<ASTObject>()->object();
-        if (obj.try_cast<PycString>() == nullptr)
+        PycRef<PycString> obj = param.cast<ASTObject>()->object().try_cast<PycString>();
+        if (obj == nullptr)
             return;
-        PycRef<ASTNode> new_node = PyarmorMixStrDecrypt(obj.cast<PycString>()->strValue(), mod);
+        PycRef<ASTNode> new_node = PyarmorMixStrDecrypt(obj->strValue(), mod);
         stack.pop();
         stack.push(new_node);
         // result of __pyarmor_assert__(b'something')
@@ -655,7 +651,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
 
                 stack.push(new ASTCall(func, pparamList, kwparamList));
 
+                // BEGIN ONESHOT TEMPORARY PATCH
                 CallOrPyarmorBuiltins(stack, curblock, mod);
+                // END ONESHOT PATCH
             }
             break;
         case Pyc::CALL_FUNCTION_VAR_A:
@@ -684,7 +682,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 call.cast<ASTCall>()->setVar(var);
                 stack.push(call);
 
+                // BEGIN ONESHOT TEMPORARY PATCH
                 CallOrPyarmorBuiltins(stack, curblock, mod);
+                // END ONESHOT PATCH
             }
             break;
         case Pyc::CALL_FUNCTION_KW_A:
@@ -713,7 +713,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 call.cast<ASTCall>()->setKW(kw);
                 stack.push(call);
 
+                // BEGIN ONESHOT TEMPORARY PATCH
                 CallOrPyarmorBuiltins(stack, curblock, mod);
+                // END ONESHOT PATCH
             }
             break;
         case Pyc::CALL_FUNCTION_VAR_KW_A:
@@ -745,9 +747,12 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 call.cast<ASTCall>()->setVar(var);
                 stack.push(call);
 
+                // BEGIN ONESHOT TEMPORARY PATCH
                 CallOrPyarmorBuiltins(stack, curblock, mod);
+                // END ONESHOT PATCH
             }
             break;
+        // BEGIN ONESHOT TEMPORARY PATCH
         case Pyc::CALL_FUNCTION_EX_A:
             {
                 PycRef<ASTNode> kw;
@@ -770,6 +775,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 CallOrPyarmorBuiltins(stack, curblock, mod);
             }
             break;
+        // END ONESHOT PATCH
         case Pyc::CALL_METHOD_A:
             {
                 ASTCall::pparam_t pparamList;
@@ -797,7 +803,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 stack.pop();
                 stack.push(new ASTCall(func, pparamList, ASTCall::kwparam_t()));
 
+                // BEGIN ONESHOT TEMPORARY PATCH
                 CallOrPyarmorBuiltins(stack, curblock, mod);
+                // END ONESHOT PATCH
             }
             break;
         case Pyc::CONTINUE_LOOP_A:
@@ -1472,7 +1480,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 bool push = true;
 
                 do {
-                    // A polyfill for Pyarmor which jumps forward on top level scope
+                    // BEGIN ONESHOT TEMPORARY PATCH
+                    // This implementation is probably wrong
+                    // Pyarmor jumps forward on top level scope
                     auto &top = blocks.top();
                     if (top == defblock) {
                         pos += offs;
@@ -1481,6 +1491,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                         }
                         break;
                     }
+                    // END ONESHOT PATCH
 
                     blocks.pop();
 
@@ -2648,8 +2659,24 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 stack.push(next_tup);
             }
             break;
+        // BEGIN ONESHOT TEMPORARY PATCH
+        // These opcodes are not implemented
+        case Pyc::JUMP_IF_NOT_EXC_MATCH_A:
+            {
+                PycRef<ASTNode> ex_type = stack.top();
+                stack.pop();
+                PycRef<ASTNode> cur_ex = stack.top();
+                stack.pop();
+            }
+        case Pyc::RERAISE:
+        case Pyc::RERAISE_A:
+            break;
+        // END ONESHOT PATCH
         default:
-            fprintf(stderr, "Unsupported opcode: %s (%d) at %s\n", Pyc::OpcodeName(opcode), opcode, code->qualName()->value());
+            fprintf(stderr, "Unsupported opcode: %s (%d) at %s\n",
+                Pyc::OpcodeName(opcode),
+                opcode,
+                mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
             cleanBuild = false;
             return new ASTNodeList(defblock->nodes());
         }
@@ -3073,6 +3100,12 @@ void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
     case ASTNode::NODE_BLOCK:
         {
             PycRef<ASTBlock> blk = node.cast<ASTBlock>();
+
+            // BEGIN ONESHOT TEMPORARY PATCH
+            if (blk->blktype() == ASTBlock::BLK_MAIN)
+                break;
+            // END ONESHOT PATCH
+
             if (blk->blktype() == ASTBlock::BLK_ELSE && blk->size() == 0)
                 break;
 

@@ -62,12 +62,23 @@ def decrypt_process(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str,
             stdout = sp.stdout.decode().splitlines()
             stderr = sp.stderr.decode().splitlines()
             for line in stdout:
-                logger.warning(f'STDOUT {line} ({path})')
+                logger.warning(f'PYCDC: {line} ({path})')
             for line in stderr:
-                if line.startswith('Warning'):
-                    logger.warning(f'STDERR {line} ({path})')
-                elif not line.startswith('Unsupported opcode:') or args.show_err_opcode:
-                    logger.error(f'STDERR {line} ({path})')
+                if line.startswith((
+                    'Warning: Stack history is empty',
+                    'Warning: Stack history is not empty!',
+                    'Warning: block stack is not empty!',
+                )):
+                    if args.show_warn_stack or args.show_all:
+                        logger.warning(f'PYCDC: {line} ({path})')
+                elif line.startswith('Unsupported opcode:'):
+                    if args.show_err_opcode or args.show_all:
+                        logger.error(f'PYCDC: {line} ({path})')
+                else:
+                    logger.error(f'PYCDC: {line} ({path})')
+            if sp.returncode != 0:
+                logger.warning(f'PYCDC returned {sp.returncode} ({path})')
+                continue
         except Exception as e:
             logger.error(f'Decrypt failed: {e} ({path})')
             continue
@@ -99,8 +110,18 @@ def parse_args():
         action='store_true',
     )
     parser.add_argument(
+        '--show-all',
+        help='show all pycdc errors and warnings',
+        action='store_true',
+    )
+    parser.add_argument(
         '--show-err-opcode',
-        help='show pycdc unsupported opcode error',
+        help='show pycdc unsupported opcode errors',
+        action='store_true',
+    )
+    parser.add_argument(
+        '--show-warn-stack',
+        help='show pycdc stack related warnings',
         action='store_true',
     )
     return parser.parse_args()
