@@ -59,8 +59,8 @@ def decrypt_process(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str,
                 stderr=subprocess.PIPE,
                 timeout=SUBPROCESS_TIMEOUT,
             )
-            stdout = sp.stdout.decode().splitlines()
-            stderr = sp.stderr.decode().splitlines()
+            stdout = sp.stdout.decode('latin-1').splitlines()
+            stderr = sp.stderr.decode('latin-1').splitlines()
             for line in stdout:
                 logger.warning(f'PYCDC: {line} ({path})')
             for line in stderr:

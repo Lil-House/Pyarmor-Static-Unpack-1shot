@@ -20,6 +20,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-error=shadow ${CMAKE_CXX_FLAGS}")
 endif()
 
+if(CMAKE_COMPILER_IS_GNUCXX)
+    set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++ ${CMAKE_EXE_LINKER_FLAGS}")
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(pyarmor-1shot

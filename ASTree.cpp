@@ -552,6 +552,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             }
             break;
         case Pyc::CALL_A:
+        // BEGIN ONESHOT TEMPORARY PATCH
+        case Pyc::CALL_KW_A:
+        // END ONESHOT PATCH
         case Pyc::CALL_FUNCTION_A:
         case Pyc::INSTRUMENTED_CALL_A:
             {
@@ -583,6 +586,17 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 stack.pop();
                 PycRef<ASTNode> loadbuild = stack.top();
                 stack.pop();
+                // BEGIN ONESHOT TEMPORARY PATCH
+                if (loadbuild == nullptr)
+                {
+                    loadbuild = stack.top();
+                    stack.pop();
+                }
+                if (stack.top() == nullptr)
+                {
+                    stack.pop();
+                }
+                // END ONESHOT PATCH
                 int loadbuild_type = loadbuild.type();
                 if (loadbuild_type == ASTNode::NODE_LOADBUILDCLASS) {
                     PycRef<ASTNode> call = new ASTCall(function, pparamList, kwparamList);
@@ -596,13 +610,19 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     stack_hist.pop();
                 }
 
-                /*
-                KW_NAMES(i)
-                    Stores a reference to co_consts[consti] into an internal variable for use by CALL.
-                    co_consts[consti] must be a tuple of strings.
-                    New in version 3.11.
-                */
-                if (mod->verCompare(3, 11) >= 0) {
+                // BEGIN ONESHOT TEMPORARY PATCH
+                if (mod->verCompare(3, 13) >= 0 && opcode == Pyc::CALL_KW_A) {
+                    PycRef<PycTuple> kw_names = stack.top().cast<ASTObject>()->object().cast<PycTuple>();
+                    stack.pop();
+                    kwparams = kw_names->values().size();
+                    pparams = operand - kwparams;
+                    for (auto it = kw_names->values().rbegin(); it != kw_names->values().rend(); it++) {
+                        kwparamList.push_front(std::make_pair(new ASTObject(*it), stack.top()));
+                        stack.pop();
+                    }
+                }
+                else if (mod->verCompare(3, 11) >= 0) {
+                // END ONESHOT PATCH
                     PycRef<ASTNode> object_or_map = stack.top();
                     if (object_or_map.type() == ASTNode::NODE_KW_NAMES_MAP) {
                         stack.pop();
@@ -642,12 +662,22 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                         pparamList.push_front(param);
                     }
                 }
+                // BEGIN ONESHOT TEMPORARY PATCH
+                // For Python 3.13 and later
+                if (mod->verCompare(3, 13) >= 0) {
+                    PycRef<ASTNode> self_or_null = stack.top();
+                    stack.pop();
+                    if (self_or_null != nullptr) {
+                        pparamList.push_front(self_or_null);
+                    }
+                }
                 PycRef<ASTNode> func = stack.top();
                 stack.pop();
                 if ((opcode == Pyc::CALL_A || opcode == Pyc::INSTRUMENTED_CALL_A) &&
-                        stack.top() == nullptr) {
+                        mod->verCompare(3, 13) < 0 && stack.top() == nullptr) {
                     stack.pop();
                 }
+                // END ONESHOT PATCH
 
                 stack.push(new ASTCall(func, pparamList, kwparamList));
 
@@ -763,14 +793,23 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 }
                 PycRef<ASTNode> var = stack.top();
                 stack.pop();
+
+                ASTCall::pparam_t pparamList;
+                if (mod->verCompare(3, 13) >= 0)
+                {
+                    PycRef<ASTNode> param = stack.top();
+                    stack.pop();
+                    if (param != nullptr)
+                        pparamList.push_front(param);
+                }
                 PycRef<ASTNode> func = stack.top();
                 stack.pop();
-                if (stack.top() == nullptr)
+                if (mod->verCompare(3, 13) < 0 && stack.top() == nullptr)
                 {
                     stack.pop();
                 }
 
-                PycRef<ASTNode> call = new ASTCall(func, ASTCall::pparam_t(), ASTCall::kwparam_t());
+                PycRef<ASTNode> call = new ASTCall(func, pparamList, ASTCall::kwparam_t());
                 if (operand & 0x01)
                     call.cast<ASTCall>()->setKW(kw);
                 call.cast<ASTCall>()->setVar(var);
@@ -1741,6 +1780,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             break;
         case Pyc::MAKE_CLOSURE_A:
         case Pyc::MAKE_FUNCTION_A:
+        // BEGIN ONESHOT TEMPORARY PATCH
+        case Pyc::MAKE_FUNCTION:
+        // END ONESHOT PATCH
             {
                 PycRef<ASTNode> fun_code = stack.top();
                 stack.pop();
@@ -1754,19 +1796,49 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 }
 
                 ASTFunction::defarg_t defArgs, kwDefArgs;
-                const int defCount = operand & 0xFF;
-                const int kwDefCount = (operand >> 8) & 0xFF;
-                for (int i = 0; i < defCount; ++i) {
-                    defArgs.push_front(stack.top());
-                    stack.pop();
+                // BEGIN ONESHOT TEMPORARY PATCH
+                if (mod->verCompare(3, 6) < 0)
+                {
+                    const int defCount = operand & 0xFF;
+                    const int kwDefCount = (operand >> 8) & 0xFF;
+                    for (int i = 0; i < defCount; ++i) {
+                        defArgs.push_front(stack.top());
+                        stack.pop();
+                    }
+                    for (int i = 0; i < kwDefCount; ++i) {
+                        kwDefArgs.push_front(stack.top());
+                        stack.pop();
+                    }
+                    if ((operand >> 16) & 0x7FFF) {
+                        // a tuple listing the parameter names for the annotations (only if there are any annotation objects)
+                        stack.pop();
+                    }
                 }
-                for (int i = 0; i < kwDefCount; ++i) {
-                    kwDefArgs.push_front(stack.top());
-                    stack.pop();
+                else if (mod->verCompare(3, 13) < 0)
+                {
+                    if (operand & 0x08)
+                        stack.pop();
+                    if (operand & 0x04)
+                        stack.pop();
+                    if (operand & 0x02)
+                        stack.pop();
+                    if (operand & 0x01)
+                        stack.pop();
                 }
+                // END ONESHOT PATCH
                 stack.push(new ASTFunction(fun_code, defArgs, kwDefArgs));
             }
             break;
+        // BEGIN ONESHOT TEMPORARY PATCH
+        case Pyc::SET_FUNCTION_ATTRIBUTE_A:
+            {
+                PycRef<ASTNode> func = stack.top();
+                stack.pop();
+                stack.pop();
+                stack.push(func);
+            }
+            break;
+        // END ONESHOT PATCH
         case Pyc::NOP:
             break;
         case Pyc::POP_BLOCK:
@@ -2676,7 +2748,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             }
             break;
         // BEGIN ONESHOT TEMPORARY PATCH
-        // These opcodes are not implemented
+        // THESE OPCODES ARE NOT IMPLEMENTED HERE
         case Pyc::COPY_A:
             {
                 FastStack tmp_stack(20);
@@ -2691,10 +2763,12 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 }
                 stack.push(value);
             }
+            break;
         case Pyc::PUSH_EXC_INFO:
             {
                 stack.push(stack.top());
             }
+            break;
         case Pyc::JUMP_IF_NOT_EXC_MATCH_A:
             {
                 PycRef<ASTNode> ex_type = stack.top();
@@ -2702,8 +2776,18 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 PycRef<ASTNode> cur_ex = stack.top();
                 stack.pop();
             }
+            break;
         case Pyc::RERAISE:
         case Pyc::RERAISE_A:
+        case Pyc::MAKE_CELL_A:
+        case Pyc::COPY_FREE_VARS_A:
+        case Pyc::TO_BOOL:
+        case Pyc::CALL_INTRINSIC_1_A:
+            break;
+        case Pyc::CALL_INTRINSIC_2_A:
+            {
+                stack.pop();
+            }
             break;
         // END ONESHOT PATCH
         default:
