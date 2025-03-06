@@ -2649,6 +2649,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                as no-ops. */
             break;
         case Pyc::PUSH_NULL:
+        // BEGIN ONESHOT TEMPORARY PATCH
+        case Pyc::BEGIN_FINALLY:
+        // END ONESHOT PATCH
             stack.push(nullptr);
             break;
         case Pyc::GEN_START_A:
