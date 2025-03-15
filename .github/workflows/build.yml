@@ -1,0 +1,55 @@
+name: Build
+on:
+  push:
+    branches: [ci-build]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build . --config Debug
+          cmake --install .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyarmor-1shot-build-${{ matrix.os }}
+          path: |
+            helpers
+            README.md
+            README-Decompyle++.markdown
+            LICENSE
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake -G "MinGW Makefiles" ..
+          cmake --build . --config Debug
+          cmake --install .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyarmor-1shot-build-windows
+          path: |
+            helpers
+            README.md
+            README-Decompyle++.markdown
+            LICENSE
