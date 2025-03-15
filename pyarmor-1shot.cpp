@@ -86,6 +86,9 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    das_out_file.flush();
+    das_out_file.close();
+
     dc_out_file << "# Source Generated with Decompyle++\n";
     formatted_print(dc_out_file, "# File: %s (Python %d.%d%s)\n\n", dispname,
                     mod.majorVer(), mod.minorVer(),
@@ -96,6 +99,9 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Error decompyling %s: %s\n", infile, ex.what());
         return 1;
     }
+
+    dc_out_file.flush();
+    dc_out_file.close();
 
     return 0;
 }

@@ -1,28 +1,22 @@
-# Pyarmor Static Unpack 1-shot
+# Pyarmor Static Unpack One-Shot Tool
 
 [Pyarmor](https://github.com/dashingsoft/pyarmor) is a popular tool to protect Python source code. It turns Python scripts into binary data, which can be regarded as an encrypted variant of pyc files. They can be decrypted by a shared library (pyarmor_runtime) and then executed by Python interpreter.
 
 This project aims to convert armored data back to bytecode assembly and (experimentally) source code. We forked the awesome [Decompyle++](https://github.com/zrax/pycdc) (aka pycdc), and added some processes on it like modifying abstract syntax tree.
 
-<details>
-<summary>Write-up will be available soon.</summary>
-
-We cannot wait to make the tool public. For those who are curious, temporarily you can check out [the similar work of G DATA Advanced Analytics](https://cyber.wtf/2025/02/12/unpacking-pyarmor-v8-scripts/).
-</details>
-
 > [!WARNING]
 >
-> **Disassembly results are accurate, but decompiled code can be incomplete and incorrect.** Bytecode has changed a lot in recent Python versions, especially in the area of exception handling that Pyarmor strongly relies on, and pycdc has limited support for bytecode in newer versions.
+> **Disassembly results are accurate, but decompiled code can be incomplete and incorrect.** Bytecode has changed a lot in recent Python versions, while pycdc has limited support for bytecode in newer versions.
 
 ## Features
 
-### Statical
+### Static
 
-You don't need to execute the encrypted script. We decrypt them by the same algorithm as pyarmor_runtime does. This is useful when the scripts are not trusted.
+You don't need to execute the encrypted script. We decrypt them using the same algorithm as pyarmor_runtime. This is useful when the scripts cannot be trusted.
 
 ### Universal
 
-Currently we are trying to support Pyarmor 8.0 - latest (9.1.1), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
+Currently we are trying to support Pyarmor 8.0 to 9.1.2 (latest), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
 
 You can run this tool in any environment, no need to be the same with obfuscated scripts or runtime.
 
@@ -71,7 +65,6 @@ Feel free to open an issue if you have any questions, suggestions, or problems. 
 
 ## Todo (PR Welcome!)
 
-- [ ] Write-up
 - [ ] Multi-platform pyarmor_runtime executable
 - [ ] Accept more input forms
 - [ ] Support more obfuscating options

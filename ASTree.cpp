@@ -1873,6 +1873,13 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                             mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
                     }
                 }
+                // BEGIN ONESHOT TEMPORARY PATCH
+                // The problem is not here, but in the way the blocks are created
+                // Add this to avoid segfault
+                if (blocks.top() == defblock)
+                    break;
+                // END ONESHOT PATCH
+                
                 PycRef<ASTBlock> tmp = curblock;
                 blocks.pop();
 
