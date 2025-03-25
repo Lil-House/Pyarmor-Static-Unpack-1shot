@@ -5,6 +5,7 @@ import os
 import subprocess
 from typing import Dict, List, Tuple
 
+from detect import detect_process
 from runtime import RuntimeInfo
 
 
@@ -157,6 +158,7 @@ def main():
 
     if args.runtime:
         specified_runtime = RuntimeInfo(args.runtime)
+        print(specified_runtime)
         runtimes = {specified_runtime.serial_number: specified_runtime}
     else:
         specified_runtime = None
@@ -167,23 +169,50 @@ def main():
     if args.output_dir and not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    if os.path.isfile(args.directory):
+        if specified_runtime is None:
+            logger.error('Please specify `pyarmor_runtime` file by `-r` if input is a file')
+            return
+        logger.info('Single file mode')
+        result = detect_process(args.directory, args.directory)
+        if result is None:
+            logger.error('No armored data found')
+            return
+        sequences.extend(result)
+        decrypt_process(runtimes, sequences, args)
+        return  # single file mode ends here
+
     dir_path: str
     dirs: List[str]
     files: List[str]
     for dir_path, dirs, files in os.walk(args.directory, followlinks=False):
+        if '.no1shot' in files:
+            logger.info(f'Skipping {dir_path} because of `.no1shot`')
+            dirs.clear()
+            files.clear()
+            continue
         for d in ['__pycache__', 'site-packages']:
             if d in dirs:
                 dirs.remove(d)
         for file_name in files:
             if '.1shot.' in file_name:
                 continue
-            handled = False
+
             file_path = os.path.join(dir_path, file_name)
             relative_path = os.path.relpath(file_path, args.directory)
 
+            if file_name.endswith('.pyz'):
+                with open(file_path, 'rb') as f:
+                    head = f.read(16 * 1024 * 1024)
+                if b'PY00' in head \
+                        and (not os.path.exists(file_path + '_extracted')
+                             or len(os.listdir(file_path + '_extracted')) == 0):
+                    logger.error(
+                        f'A PYZ file containing armored data is detected, but the PYZ file has not been extracted by other tools. This error is not a problem with this tool. If the folder is extracted by Pyinstxtractor, please read the output information of Pyinstxtractor carefully. ({relative_path})')
+                continue
+
             # is pyarmor_runtime?
-            if not handled \
-                    and specified_runtime is None \
+            if specified_runtime is None \
                     and file_name.startswith('pyarmor_runtime') \
                     and file_name.endswith(('.pyd', '.so', '.dylib')):
                 try:
@@ -192,40 +221,13 @@ def main():
                     logger.info(
                         f'Found new runtime: {new_runtime.serial_number} ({file_path})')
                     print(new_runtime)
-                    handled = True
+                    continue
                 except:
                     pass
 
-            try:
-                with open(file_path, 'rb') as f:
-                    beacon = f.read(16 * 1024 * 1024)
-            except:
-                logger.error(f'Failed to read file: {relative_path}')
-                continue
-
-            # is UTF-8 source?
-            # TODO: only support natural one line now
-            if not handled and b'__pyarmor__(__name__, __file__,' in beacon:
-                try:
-                    with open(file_path, 'r') as f:
-                        for line in f:
-                            if line.startswith('__pyarmor__(') and line.rstrip().endswith(')'):
-                                co = compile(line, '<str>', 'exec')
-                                bytes_raw = co.co_consts[0]
-                                assert type(bytes_raw) is bytes
-                                assert bytes_raw.startswith(b'PY')
-                                assert len(bytes_raw) > 64
-                                break
-                    logger.info(f'Found data in source: {relative_path}')
-                    # FIXME: bytes_raw can be kept from last iteration
-                    sequences.append((relative_path, bytes_raw))
-                    del bytes_raw
-                    handled = True
-                except Exception as e:
-                    logger.error(f'Assume source, but {e} ({file_path})')
-
-            # TODO: is Nuitka package?
-            # TODO: is pyc or single marshalled binary?
+            result = detect_process(file_path, relative_path)
+            if result is not None:
+                sequences.extend(result)
 
     if not runtimes:
         logger.error('No runtime found')
