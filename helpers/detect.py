@@ -1,13 +1,13 @@
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 
 def ascii_ratio(data: bytes) -> float:
     return sum(32 <= c < 127 for c in data) / len(data)
 
 
-def source_as_file(file_path: str) -> List[bytes] | None:
+def source_as_file(file_path: str) -> Union[List[bytes], None]:
     try:
         with open(file_path, 'r') as f:
             co = compile(f.read(), '<str>', 'exec')
@@ -18,7 +18,7 @@ def source_as_file(file_path: str) -> List[bytes] | None:
         return None
 
 
-def source_as_lines(file_path: str) -> List[bytes] | None:
+def source_as_lines(file_path: str) -> Union[List[bytes], None]:
     data = []
     try:
         with open(file_path, 'r') as f:
@@ -69,7 +69,7 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
     return result
 
 
-def nuitka_package(head: bytes, relative_path: str) -> None | List[Tuple[str, bytes]]:
+def nuitka_package(head: bytes, relative_path: str) -> Union[List[Tuple[str, bytes]], None]:
     first_occurrence = head.find(b'PY00')
     if first_occurrence == -1:
         return None
@@ -99,7 +99,7 @@ def nuitka_package(head: bytes, relative_path: str) -> None | List[Tuple[str, by
     return None
 
 
-def detect_process(file_path: str, relative_path: str) -> None | List[Tuple[str, bytes]]:
+def detect_process(file_path: str, relative_path: str) -> Union[List[Tuple[str, bytes]], None]:
     '''
     Returns a list of (relative_path, bytes_raw) tuples, or None.
     Do not raise exceptions.
@@ -127,15 +127,15 @@ def detect_process(file_path: str, relative_path: str) -> None | List[Tuple[str,
         if result is None:
             return None
 
-        match len(result):
-            case 0:
-                return None
-            case 1:
-                logger.info(f'Found data in source: {relative_path}')
-                return [(relative_path, result[0])]
-            case _:
-                logger.info(f'Found data in source: {relative_path}')
-                return [(f'{relative_path}__{i}', result[i]) for i in range(len(result))]
+        result_len = len(result)
+        if result_len == 0:
+            return None
+        elif result_len == 1:
+            logger.info(f'Found data in source: {relative_path}')
+            return [(relative_path, result[0])]
+        else:
+            logger.info(f'Found data in source: {relative_path}')
+            return [(f'{relative_path}__{i}', result[i]) for i in range(len(result))]
 
     # binary file
     # ignore data after 16MB, before we have a reason to read more
@@ -146,12 +146,12 @@ def detect_process(file_path: str, relative_path: str) -> None | List[Tuple[str,
         return nuitka_package(head, relative_path)
 
     result = find_data_from_bytes(head)
-    match len(result):
-        case 0:
-            return None
-        case 1:
-            logger.info(f'Found data in binary: {relative_path}')
-            return [(relative_path, result[0])]
-        case _:
-            logger.info(f'Found data in binary: {relative_path}')
-            return [(f'{relative_path}__{i}', result[i]) for i in range(len(result))]
+    result_len = len(result)
+    if result_len == 0:
+        return None
+    elif result_len == 1:
+        logger.info(f'Found data in binary: {relative_path}')
+        return [(relative_path, result[0])]
+    else:
+        logger.info(f'Found data in binary: {relative_path}')
+        return [(f'{relative_path}__{i}', result[i]) for i in range(len(result))]
