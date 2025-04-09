@@ -7,7 +7,9 @@ import sys
 import time
 import asyncio
 import traceback
-from typing import Dict, List, Tuple
+import platform
+import glob
+from typing import Dict, List, Tuple, Optional
 from colorama import init, Fore, Style
 
 from detect import detect_process
@@ -140,9 +142,8 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                         data[cipher_text_offset:cipher_text_offset+cipher_text_length], runtime.runtime_aes_key, nonce))
                     f.write(data[cipher_text_offset+cipher_text_length:])
 
-                exe_name = 'pyarmor-1shot.exe' if os.name == 'nt' else 'pyarmor-1shot'
-                exe_path = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), exe_name)
+                # Get the appropriate executable for the current platform
+                exe_path = get_platform_executable(args)
                 
                 # Run without timeout
                 returncode, stdout_lines, stderr_lines = await decrypt_file_async(exe_path, seq_file_path, path, args)
@@ -205,6 +206,85 @@ def decrypt_process(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str,
     asyncio.run(decrypt_process_async(runtimes, sequences, args))
 
 
+def get_platform_executable(args) -> str:
+    """
+    Get the appropriate executable for the current platform
+    """
+    logger = logging.getLogger('shot')
+    
+    # If a specific executable is provided, use it
+    if args.executable:
+        if os.path.exists(args.executable):
+            logger.info(f'{Fore.GREEN}Using specified executable: {args.executable}{Style.RESET_ALL}')
+            return args.executable
+        else:
+            logger.warning(f'{Fore.YELLOW}Specified executable not found: {args.executable}{Style.RESET_ALL}')
+    
+    # Determine the current platform
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # Map platform to executable name
+    platform_map = {
+        'windows': 'pyarmor-1shot.exe',
+        'linux': 'pyarmor-1shot',
+        'darwin': 'pyarmor-1shot'  # macOS
+    }
+    
+    # Get the base executable name for the current platform
+    base_exe_name = platform_map.get(system, 'pyarmor-1shot')
+    
+    # Check for architecture-specific executables
+    arch_specific_exe = f'pyarmor-1shot-{system}-{machine}'
+    if system == 'windows':
+        arch_specific_exe += '.exe'
+    
+    # Look for executables in the helpers directory
+    helpers_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # First check for architecture-specific executable
+    arch_exe_path = os.path.join(helpers_dir, arch_specific_exe)
+    if os.path.exists(arch_exe_path):
+        logger.info(f'{Fore.GREEN}Using architecture-specific executable: {arch_specific_exe}{Style.RESET_ALL}')
+        return arch_exe_path
+    
+    # Then check for platform-specific executable
+    platform_exe_path = os.path.join(helpers_dir, base_exe_name)
+    if os.path.exists(platform_exe_path):
+        logger.info(f'{Fore.GREEN}Using platform-specific executable: {base_exe_name}{Style.RESET_ALL}')
+        return platform_exe_path
+    
+    # Finally, check for generic executable
+    generic_exe_path = os.path.join(helpers_dir, 'pyarmor-1shot')
+    if os.path.exists(generic_exe_path):
+        logger.info(f'{Fore.GREEN}Using generic executable: pyarmor-1shot{Style.RESET_ALL}')
+        return generic_exe_path
+    
+    # If no executable is found, use the default name
+    logger.warning(f'{Fore.YELLOW}No specific executable found for {system}-{machine}, using default: {base_exe_name}{Style.RESET_ALL}')
+    return os.path.join(helpers_dir, base_exe_name)
+
+
+def find_runtime_files(directory: str) -> List[str]:
+    """
+    Find all pyarmor_runtime files in the given directory and its subdirectories
+    """
+    runtime_files = []
+    
+    # Common runtime file patterns
+    patterns = [
+        'pyarmor_runtime*.pyd',  # Windows
+        'pyarmor_runtime*.so',   # Linux
+        'pyarmor_runtime*.dylib' # macOS
+    ]
+    
+    for pattern in patterns:
+        for file_path in glob.glob(os.path.join(directory, '**', pattern), recursive=True):
+            runtime_files.append(file_path)
+    
+    return runtime_files
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Pyarmor Static Unpack 1 Shot Entry')
@@ -256,6 +336,17 @@ def parse_args():
         help='number of concurrent deobfuscation processes (default: 4)',
         type=int,
         default=4,
+    )
+    parser.add_argument(
+        '-e',
+        '--executable',
+        help='path to the pyarmor-1shot executable to use',
+        type=str,
+    )
+    parser.add_argument(
+        '--auto-detect-runtime',
+        help='automatically detect and use all pyarmor_runtime files in the directory',
+        action='store_true',
     )
     return parser.parse_args()
 
@@ -355,6 +446,23 @@ def main():
         sequences.extend(result)
         decrypt_process(runtimes, sequences, args)
         return  # single file mode ends here
+
+    # Auto-detect runtime files if requested
+    if args.auto_detect_runtime:
+        logger.info(f'{Fore.CYAN}Auto-detecting runtime files in {args.directory}...{Style.RESET_ALL}')
+        runtime_files = find_runtime_files(args.directory)
+        if runtime_files:
+            logger.info(f'{Fore.GREEN}Found {len(runtime_files)} runtime files{Style.RESET_ALL}')
+            for runtime_file in runtime_files:
+                try:
+                    new_runtime = RuntimeInfo(runtime_file)
+                    runtimes[new_runtime.serial_number] = new_runtime
+                    logger.info(f'{Fore.GREEN}Found runtime: {new_runtime.serial_number} ({runtime_file}){Style.RESET_ALL}')
+                    print(new_runtime)
+                except Exception as e:
+                    logger.error(f'{Fore.RED}Failed to load runtime {runtime_file}: {e}{Style.RESET_ALL}')
+        else:
+            logger.warning(f'{Fore.YELLOW}No runtime files found in {args.directory}{Style.RESET_ALL}')
 
     dir_path: str
     dirs: List[str]
