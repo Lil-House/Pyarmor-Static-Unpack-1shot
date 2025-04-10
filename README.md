@@ -16,7 +16,7 @@ You don't need to execute the encrypted script. We decrypt them using the same a
 
 ### Universal
 
-Currently we are trying to support Pyarmor 8.0 to 9.1.2 (latest), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
+Currently we are trying to support Pyarmor 8.0 to 9.1.3 (latest), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
 
 You can run this tool in any environment, no need to be the same with obfuscated scripts or runtime.
 
@@ -67,5 +67,4 @@ Feel free to open an issue if you have any questions, suggestions, or problems. 
 
 - [ ] Multi-platform pyarmor_runtime executable
 - [ ] Support more obfuscating options
-- [ ] Use asyncio for concurrency
-- [ ] Pyarmor 7 and before (Later or never.)
+- [ ] Regenerate pyc for other backends
