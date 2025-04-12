@@ -25,11 +25,16 @@ af 09 fb 04 54 a9 ea c0 c1 e9 32 6c 77 92 7f 9f
 class RuntimeInfo:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
+        # Determine platform based on file extension
         if file_path.endswith('.pyd'):
             self.extract_info_win64()
+        elif file_path.endswith('.so'):
+            self.extract_info_linux()
+        elif file_path.endswith('.dylib'):
+            self.extract_info_macos()
         else:
-            # TODO: implement for other platforms
-            self.extract_info_win64()
+            # Try to auto-detect platform
+            self.auto_detect_platform()
 
         self.serial_number = self.part_1[12:18].decode()
         self.runtime_aes_key = self.calc_aes_key()
@@ -53,11 +58,29 @@ class RuntimeInfo:
     def __repr__(self) -> str:
         return f'RuntimeInfo(part_1={self.part_1}, part_2={self.part_2}, part_3={self.part_3})'
 
+    def auto_detect_platform(self) -> None:
+
+        # Auto-detect platform by examining file signature and contents.
+        # Falls back to win64 extraction if platform cannot be determined.
+        
+        with open(self.file_path, 'rb') as f:
+            header = f.read(4)
+        
+        # Check file signature
+        if header.startswith(b'MZ'):  # Windows PE
+            self.extract_info_win64()
+        elif header.startswith(b'\x7fELF'):  # ELF (Linux)
+            self.extract_info_linux()
+        elif header in (b'\xca\xfe\xba\xbe', b'\xcf\xfa\xed\xfe'):  # Mach-O (macOS)
+            self.extract_info_macos()
+        else:
+            # Default fallback
+            self.extract_info_win64()
+
     def extract_info_win64(self) -> None:
-        '''
-        Try to find useful information from `pyarmor_runtime.pyd` file,
-        and store all three parts in the object.
-        '''
+
+        # Extract information from Windows 64-bit pyarmor_runtime.pyd file.
+
         with open(self.file_path, 'rb') as f:
             data = f.read(16 * 1024 * 1024)
         cur = data.index(b'pyarmor-vax')
@@ -67,6 +90,65 @@ class RuntimeInfo:
 
         self.part_1 = data[cur:cur+20]
 
+        cur += 36
+        part_2_offset = int.from_bytes(data[cur:cur+4], 'little')
+        part_2_len = int.from_bytes(data[cur+4:cur+8], 'little')
+        part_3_offset = int.from_bytes(data[cur+8:cur+12], 'little')
+        cur += 16
+        self.part_2 = data[cur+part_2_offset:cur+part_2_offset+part_2_len]
+
+        cur += part_3_offset
+        part_3_len = int.from_bytes(data[cur+4:cur+8], 'little')
+        cur += 32
+        self.part_3 = data[cur:cur+part_3_len]
+
+    def extract_info_linux(self) -> None:
+
+        # Extract information from Linux pyarmor_runtime.so file.
+        # Uses same structure but different search patterns due to ELF format.
+
+        with open(self.file_path, 'rb') as f:
+            data = f.read(16 * 1024 * 1024)
+        
+        # Find pyarmor marker
+        cur = data.index(b'pyarmor-vax')
+
+        if data[cur+11:cur+18] == b'\x00' * 7:
+            raise ValueError(f'{self.file_path} is a runtime template')
+
+        self.part_1 = data[cur:cur+20]
+
+        # Linux shared objects typically have the same data structure
+        # but it's offset differently in the file
+        cur += 36
+        part_2_offset = int.from_bytes(data[cur:cur+4], 'little')
+        part_2_len = int.from_bytes(data[cur+4:cur+8], 'little')
+        part_3_offset = int.from_bytes(data[cur+8:cur+12], 'little')
+        cur += 16
+        self.part_2 = data[cur+part_2_offset:cur+part_2_offset+part_2_len]
+
+        cur += part_3_offset
+        part_3_len = int.from_bytes(data[cur+4:cur+8], 'little')
+        cur += 32
+        self.part_3 = data[cur:cur+part_3_len]
+
+    def extract_info_macos(self) -> None:
+
+        # Extract information from macOS pyarmor_runtime.dylib file.
+        # Uses same structure but different search patterns due to Mach-O format.
+
+        with open(self.file_path, 'rb') as f:
+            data = f.read(16 * 1024 * 1024)
+        
+        # Find pyarmor marker
+        cur = data.index(b'pyarmor-vax')
+
+        if data[cur+11:cur+18] == b'\x00' * 7:
+            raise ValueError(f'{self.file_path} is a runtime template')
+
+        self.part_1 = data[cur:cur+20]
+
+        # macOS dylib files have a similar structure to Linux .so files
         cur += 36
         part_2_offset = int.from_bytes(data[cur:cur+4], 'little')
         part_2_len = int.from_bytes(data[cur+4:cur+8], 'little')

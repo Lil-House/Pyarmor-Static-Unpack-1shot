@@ -5,7 +5,13 @@ import os
 import asyncio
 import traceback
 import platform
-from typing import Dict, List, Tuple
+import py_compile
+import importlib.util
+import struct
+import marshal
+import time
+import sys
+from typing import Dict, List, Tuple, Optional
 
 try:
     from colorama import init, Fore, Style
@@ -184,6 +190,12 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                             if returncode == 0:
                                 logger.info(f'{Fore.GREEN}Successfully deobfuscated using BCC fallback method{Style.RESET_ALL}')
                                 print(f"{Fore.GREEN} BCC Decrypted: {path}{Style.RESET_ALL}")
+                                
+                                # Generate .pyc file if requested
+                                if args.generate_pyc and path.endswith('.py'):
+                                    py_file_path = dest_path
+                                    pyc_file_path = py_file_path + 'c'  # .py -> .pyc
+                                    generate_pyc_file(py_file_path, args.pyc_version, pyc_file_path)
                             else:
                                 logger.error(f'{Fore.RED}BCC fallback deobfuscation failed with return code {returncode}{Style.RESET_ALL}')
                                 for line in stderr_lines:
@@ -196,6 +208,12 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                     # Successfully decrypted
                     logger.info(f'{Fore.GREEN}Successfully decrypted: {path}{Style.RESET_ALL}')
                     print(f"{Fore.GREEN} Decrypted: {path}{Style.RESET_ALL}")
+                    
+                    # Generate .pyc file if requested
+                    if args.generate_pyc and path.endswith('.py'):
+                        py_file_path = dest_path
+                        pyc_file_path = py_file_path + 'c'  # .py -> .pyc
+                        generate_pyc_file(py_file_path, args.pyc_version, pyc_file_path)
                 else:
                     logger.warning(f'{Fore.YELLOW}{error_message} ({path}){Style.RESET_ALL}')
             except Exception as e:
@@ -323,6 +341,17 @@ def parse_args():
         '--executable',
         help='path to the pyarmor-1shot executable to use',
         type=str,
+    )
+    parser.add_argument(
+        '--generate-pyc',
+        help='generate .pyc files after deobfuscation (for different Python versions)',
+        action='store_true',
+    )
+    parser.add_argument(
+        '--pyc-version',
+        help='target Python version for generated .pyc files (e.g., 3.8, 3.9)',
+        type=str,
+        default=f"{sys.version_info.major}.{sys.version_info.minor}",
     )
     return parser.parse_args()
 
@@ -475,7 +504,114 @@ def main():
     if not sequences:
         logger.error(f'{Fore.RED}No armored data found{Style.RESET_ALL}')
         return
+
+    if args.generate_pyc:
+        logger.info(f'{Fore.CYAN}Pyc generation enabled for Python {args.pyc_version}{Style.RESET_ALL}')
+
     decrypt_process(runtimes, sequences, args)
+
+
+# New function to generate pyc files
+def generate_pyc_file(py_file_path: str, pyc_version: str, dest_path: Optional[str] = None) -> bool:
+    """
+    Generate a .pyc file from a .py file for a specific Python version.
+    
+    Args:
+        py_file_path: Path to the .py file
+        pyc_version: Target Python version (e.g., "3.8")
+        dest_path: Optional destination path for the .pyc file
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    logger = logging.getLogger('shot')
+    
+    try:
+        if not os.path.exists(py_file_path):
+            logger.error(f'{Fore.RED}Source file not found: {py_file_path}{Style.RESET_ALL}')
+            return False
+            
+        # If no destination path provided, use source path with .pyc extension
+        if dest_path is None:
+            dest_path = py_file_path + '.pyc'
+            
+        # Parse target Python version
+        try:
+            major, minor = map(int, pyc_version.split('.'))
+        except ValueError:
+            logger.error(f'{Fore.RED}Invalid Python version format: {pyc_version}. Use format like "3.8"{Style.RESET_ALL}')
+            return False
+            
+        # Current Python version
+        current_major, current_minor = sys.version_info.major, sys.version_info.minor
+        
+        # If the target version is the same as current Python version, use py_compile
+        if (major, minor) == (current_major, current_minor):
+            logger.info(f'{Fore.CYAN}Generating .pyc file using current Python interpreter ({pyc_version}){Style.RESET_ALL}')
+            try:
+                py_compile.compile(py_file_path, dest_path, doraise=True)
+                logger.info(f'{Fore.GREEN}Successfully generated .pyc file: {dest_path}{Style.RESET_ALL}')
+                return True
+            except Exception as e:
+                logger.error(f'{Fore.RED}Failed to compile with py_compile: {e}{Style.RESET_ALL}')
+                return False
+                
+        # If target version is different, manually create the .pyc file
+        logger.info(f'{Fore.CYAN}Generating .pyc file for Python {pyc_version}{Style.RESET_ALL}')
+        
+        # Define magic numbers for different Python versions
+        magic_numbers = {
+            (3, 7): 3394,
+            (3, 8): 3413,
+            (3, 9): 3425,
+            (3, 10): 3439,
+            (3, 11): 3495,
+            (3, 12): 3531,
+        }
+        
+        # Check if the target version is supported
+        if (major, minor) not in magic_numbers:
+            logger.error(f'{Fore.RED}Unsupported Python version: {pyc_version}. Supported versions: {", ".join([f"{maj}.{min}" for maj, min in magic_numbers.keys()])}{Style.RESET_ALL}')
+            return False
+            
+        # Get the magic number for the target version
+        magic = magic_numbers[(major, minor)]
+        
+        # Compile the source code
+        with open(py_file_path, 'r', encoding='utf-8') as f:
+            source_code = f.read()
+            
+        try:
+            code_object = compile(source_code, py_file_path, 'exec')
+        except Exception as e:
+            logger.error(f'{Fore.RED}Failed to compile source code: {e}{Style.RESET_ALL}')
+            return False
+            
+        # Create the pyc file
+        with open(dest_path, 'wb') as pyc_file:
+            # Write magic number
+            pyc_file.write(struct.pack('<H', magic))
+            pyc_file.write(b'\r\n')
+            
+            # Write timestamp (32-bit)
+            timestamp = int(os.path.getmtime(py_file_path))
+            pyc_file.write(struct.pack('<I', timestamp))
+            
+            # Write size parameter for Python 3.7+
+            size = os.path.getsize(py_file_path)
+            pyc_file.write(struct.pack('<I', size))
+            
+            # Write the code object
+            marshal.dump(code_object, pyc_file)
+            
+        logger.info(f'{Fore.GREEN}Successfully generated .pyc file for Python {pyc_version}: {dest_path}{Style.RESET_ALL}')
+        return True
+    
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f'{Fore.RED}Failed to generate .pyc file: {e}{Style.RESET_ALL}')
+        logger.error(f'{Fore.RED}Error details: {error_details}{Style.RESET_ALL}')
+        return False
 
 
 if __name__ == '__main__':
