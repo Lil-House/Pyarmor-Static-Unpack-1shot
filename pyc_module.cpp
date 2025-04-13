@@ -252,6 +252,31 @@ void PycModule::loadFromMarshalledFile(const char* filename, int major, int mino
     m_code = LoadObject(&in, this).cast<PycCode>();
 }
 
+bool PycModule::detectBccMode(const char* buffer, size_t length) const
+{
+    // Check for BCC mode marker
+    if (length < 0x5C) {
+        return false;
+    }
+
+    // Check for BCC specific marker in BCC part length field
+    unsigned int bcc_part_length = *(unsigned int*)(buffer + 0x58);
+    
+    // If bcc_part_length is non-zero and reasonable, it's likely BCC mode
+    if (bcc_part_length > 0 && bcc_part_length < length - 64) {
+        return true;
+    }
+    
+    // Check for BCC specific markers
+    for (size_t i = 0; i < length - 14; ++i) {
+        if (memcmp(buffer + i, "__pyarmor_bcc__", 15) == 0) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void PycModule::loadFromOneshotSequenceFile(const char *filename)
 {
     PycFile in(filename);
@@ -261,7 +286,25 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
         return;
     }
 
+    // Read header for PyArmor mode detection
+    char header_buffer[1024] = {0};
+    size_t header_size = 0;
     bool oneshot_seq_header = true;
+    
+    // Store file position for seeking back after header analysis
+    long file_pos = in.tell();
+    
+    // Read up to 1024 bytes of header for mode detection
+    in.getBuffer(sizeof(header_buffer), header_buffer);
+    header_size = sizeof(header_buffer);
+    
+    // Detect BCC mode
+    m_is_bcc = detectBccMode(header_buffer, header_size);
+    
+    // Reset file position
+    in.seek(file_pos);
+    
+    // Process sequence header
     while (oneshot_seq_header)
     {
         int indicator = in.getByte();
@@ -279,7 +322,10 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
             oneshot_seq_header = false;
             break;
         default:
-            fprintf(stderr, "Unknown 1-shot sequence indicator %02X\n", indicator);
+            // Reduce verbosity in error messages
+            if (!m_is_bcc) {
+                fprintf(stderr, "Unknown 1-shot sequence indicator %02X\n", indicator);
+            }
             break;
         }
     }
@@ -292,7 +338,52 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
     this->m_maj = pyarmor_header[9];
     this->m_min = pyarmor_header[10];
     this->m_unicode = (m_maj >= 3);
+    
+    // Detect PyArmor mode based on header flags
+    unsigned int adv_flag = *(unsigned int*)(pyarmor_header + 24);
+    if (m_is_bcc) {
+        m_pyarmor_mode = PYARMOR_MODE_BCC;
+    } else if (memcmp(pyarmor_header, "PYSA", 4) == 0) {
+        m_pyarmor_mode = PYARMOR_MODE_SUPER;
+    } else if ((adv_flag & 0x1) != 0) {
+        m_pyarmor_mode = PYARMOR_MODE_ADVANCED;
+    } else {
+        m_pyarmor_mode = PYARMOR_MODE_STANDARD;
+    }
 
+    // Handle BCC mode differently
+    if (m_is_bcc) {
+        // For BCC mode, we need to process the BCC section
+        unsigned int remain_header_length = *(unsigned int *)(pyarmor_header + 28) - 64;
+        
+        // Skip remaining header
+        while (remain_header_length) {
+            unsigned int discard_length = (remain_header_length > 64) ? 64 : remain_header_length;
+            in.getBuffer(discard_length, discard_buffer);
+            remain_header_length -= discard_length;
+        }
+        
+        // For BCC files, handle BCC part
+        unsigned int bcc_part_length = *(unsigned int *)(pyarmor_header + 0x58);
+        if (bcc_part_length > 0) {
+            // Skip BCC part which contains native code
+            in.seek(in.tell() + bcc_part_length);
+            
+            // Continue with bytecode part
+            try {
+                m_code = LoadObject(&in, this).cast<PycCode>();
+            } catch (const std::exception& ex) {
+                // Don't flood with error messages for BCC mode
+                if (!m_is_bcc) {
+                    fprintf(stderr, "Error loading code object: %s\n", ex.what());
+                }
+                m_code = PycRef<PycCode>(nullptr);
+            }
+            return;
+        }
+    }
+    
+    // Standard processing for non-BCC modes
     unsigned int remain_header_length = *(unsigned int *)(pyarmor_header + 28) - 64;
     while (remain_header_length)
     {
@@ -324,7 +415,15 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
         free(procedure_buffer);
     }
 
-    m_code = LoadObject(&in, this).cast<PycCode>();
+    try {
+        m_code = LoadObject(&in, this).cast<PycCode>();
+    } catch (const std::exception& ex) {
+        // Don't flood with error messages for BCC mode
+        if (!m_is_bcc) {
+            fprintf(stderr, "Error loading code object: %s\n", ex.what());
+        }
+        m_code = PycRef<PycCode>(nullptr);
+    }
 }
 
 #define GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(CUR, REF)   \

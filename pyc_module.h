@@ -40,9 +40,19 @@ enum PycMagic {
     INVALID = 0,
 };
 
+// PyArmor modes
+enum PyarmorMode {
+    PYARMOR_MODE_STANDARD = 0,
+    PYARMOR_MODE_ADVANCED = 1,
+    PYARMOR_MODE_SUPER = 2,
+    PYARMOR_MODE_VM_ADVANCED = 3,
+    PYARMOR_MODE_VM_SUPER = 4,
+    PYARMOR_MODE_BCC = 5,
+};
+
 class PycModule {
 public:
-    PycModule() : m_maj(-1), m_min(-1), m_unicode(false) { }
+    PycModule() : m_maj(-1), m_min(-1), m_unicode(false), m_pyarmor_mode(PYARMOR_MODE_STANDARD), m_is_bcc(false) { }
 
     void loadFromFile(const char* filename);
     void loadFromMarshalledFile(const char *filename, int major, int minor);
@@ -80,6 +90,15 @@ public:
     PycRef<PycObject> getRef(int ref) const;
 
     static bool isSupportedVersion(int major, int minor);
+    
+    // PyArmor mode handling
+    PyarmorMode pyarmorMode() const { return m_pyarmor_mode; }
+    void setPyarmorMode(PyarmorMode mode) { m_pyarmor_mode = mode; }
+    bool isBccMode() const { return m_is_bcc; }
+    void setBccMode(bool is_bcc) { m_is_bcc = is_bcc; }
+    
+    // Detect BCC mode from file content
+    bool detectBccMode(const char* buffer, size_t length) const;
 
     unsigned char pyarmor_aes_key[16];
     unsigned char pyarmor_mix_str_aes_nonce[12];
@@ -92,6 +111,8 @@ private:
 private:
     int m_maj, m_min;
     bool m_unicode;
+    PyarmorMode m_pyarmor_mode;
+    bool m_is_bcc;
 
     PycRef<PycCode> m_code;
     std::vector<PycRef<PycString>> m_interns;

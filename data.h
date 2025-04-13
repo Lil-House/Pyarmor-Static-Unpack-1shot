@@ -35,6 +35,10 @@ public:
 
     int getByte() override;
     int getBuffer(int bytes, void* buffer) override;
+    
+    // Add file seeking capabilities to support BCC mode detection
+    long tell() const { return m_stream ? ftell(m_stream) : -1; }
+    void seek(long pos) { if (m_stream) fseek(m_stream, pos, SEEK_SET); }
 
 private:
     FILE* m_stream;
