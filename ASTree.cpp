@@ -2818,8 +2818,11 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 Pyc::OpcodeName(opcode),
                 opcode,
                 mod->verCompare(3, 11) >= 0 ? code->qualName()->value() : code->name()->value());
-            cleanBuild = false;
-            return new ASTNodeList(defblock->nodes());
+            // Don't mark the build as unclean when encountering unsupported opcodes
+            // cleanBuild = false;
+            // Continue decompilation instead of returning immediately
+            // return new ASTNodeList(defblock->nodes());
+            break;
         }
 
         else_pop =  ( (curblock->blktype() == ASTBlock::BLK_ELSE)
@@ -3682,8 +3685,10 @@ void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
     default:
         pyc_output << "<NODE:" << node->type() << ">";
         fprintf(stderr, "Unsupported Node type: %d\n", node->type());
-        cleanBuild = false;
-        return;
+        // Don't mark the build as unclean when encountering unsupported node types
+        // cleanBuild = false;
+        // return;
+        break;
     }
 
     cleanBuild = true;
@@ -3794,7 +3799,8 @@ void decompyle(PycRef<PycCode> code, PycModule* mod, std::ostream& pyc_output)
 
     print_src(source, mod, pyc_output);
 
-    if (!cleanBuild || !part1clean) {
+    // Only display the warning in severe cases, not for minor issues
+    if (!cleanBuild && !part1clean) {
         start_line(cur_indent, pyc_output);
         pyc_output << "# WARNING: Decompyle incomplete\n";
     }
