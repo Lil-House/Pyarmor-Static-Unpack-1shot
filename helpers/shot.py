@@ -60,22 +60,17 @@ def bcc_fallback_method(seq_file_path: str, output_path: str = None):
         return None
 
 
-async def run_subprocess_async(cmd, cwd=None):
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=cwd
-    )
-    stdout, stderr = await process.communicate()
-    return process.returncode, stdout, stderr
-
-
 async def decrypt_file_async(exe_path, seq_file_path, path, args):
     logger = logging.getLogger('shot')
     try:
         # Run without timeout
-        returncode, stdout, stderr = await run_subprocess_async([exe_path, seq_file_path])
+        process = await asyncio.create_subprocess_exec(
+            exe_path,
+            seq_file_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
         
         stdout_lines = stdout.decode('latin-1').splitlines()
         stderr_lines = stderr.decode('latin-1').splitlines()
@@ -105,12 +100,13 @@ async def decrypt_file_async(exe_path, seq_file_path, path, args):
             else:
                 logger.error(f'PYCDC: {line} ({path})')
         
-        return returncode, stdout_lines, stderr_lines
+        if process.returncode != 0:
+            logger.warning(f'{Fore.YELLOW}PYCDC returned 0x{process.returncode:x} ({path}){Style.RESET_ALL}')
+
     except Exception as e:
         error_details = traceback.format_exc()
-        logger.error(f'{Fore.RED}Error during async deobfuscation: {e}{Style.RESET_ALL}')
+        logger.error(f'{Fore.RED}Exception: {e} ({path}){Style.RESET_ALL}')
         logger.error(f'{Fore.RED}Error details: {error_details}{Style.RESET_ALL}')
-        return -1, [], []
 
 
 async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str, bytes]], args):
@@ -153,51 +149,8 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                     f.write(data[cipher_text_offset+cipher_text_length:])
 
                 # Run without timeout
-                returncode, stdout_lines, stderr_lines = await decrypt_file_async(exe_path, seq_file_path, path, args)
-                
-                # Check for specific errors that indicate BCC mode
-                should_try_bcc = False
-                error_message = ""
+                await decrypt_file_async(exe_path, seq_file_path, path, args)
 
-                # FIXME: Probably false positive
-                if returncode != 0:
-                    error_message = f"PYCDC returned {returncode}"
-                    # Check for specific error patterns that suggest BCC mode
-                    for line in stderr_lines:
-                        if ("Unsupported opcode" in line or 
-                            "Something TERRIBLE happened" in line or
-                            "Unknown opcode 0" in line or
-                            "Got unsupported type" in line):
-                            should_try_bcc = True
-                            error_message += f" - {line}"
-                            break
-                
-                if should_try_bcc:
-                    logger.warning(f'{Fore.YELLOW}{error_message} ({path}) - Attempting BCC fallback{Style.RESET_ALL}')
-                    # Try BCC fallback method
-                    bcc_file_path = bcc_fallback_method(seq_file_path)
-                    if bcc_file_path:
-                        logger.info(f'{Fore.GREEN}Running deobfuscator on BCC fallback file{Style.RESET_ALL}')
-                        try:
-                            # Run without timeout
-                            returncode, stdout_lines, stderr_lines = await decrypt_file_async(exe_path, bcc_file_path, path, args)
-                            if returncode == 0:
-                                logger.info(f'{Fore.GREEN}Successfully deobfuscated using BCC fallback method{Style.RESET_ALL}')
-                                print(f"{Fore.GREEN} BCC Decrypted: {path}{Style.RESET_ALL}")
-                            else:
-                                logger.error(f'{Fore.RED}BCC fallback deobfuscation failed with return code {returncode}{Style.RESET_ALL}')
-                                for line in stderr_lines:
-                                    logger.error(f'{Fore.RED}BCC Error: {line}{Style.RESET_ALL}')
-                        except Exception as e:
-                            error_details = traceback.format_exc()
-                            logger.error(f'{Fore.RED}BCC fallback deobfuscation failed with error: {e}{Style.RESET_ALL}')
-                            logger.error(f'{Fore.RED}Error details: {error_details}{Style.RESET_ALL}')
-                elif returncode == 0:
-                    # Successfully decrypted
-                    logger.info(f'{Fore.GREEN}Successfully decrypted: {path}{Style.RESET_ALL}')
-                    print(f"{Fore.GREEN} Decrypted: {path}{Style.RESET_ALL}")
-                else:
-                    logger.warning(f'{Fore.YELLOW}{error_message} ({path}){Style.RESET_ALL}')
             except Exception as e:
                 error_details = traceback.format_exc()
                 logger.error(f'{Fore.RED}Decrypt failed: {e} ({path}){Style.RESET_ALL}')
@@ -253,13 +206,13 @@ def get_platform_executable(args) -> str:
     # Then check for platform-specific executable
     platform_exe_path = os.path.join(helpers_dir, base_exe_name)
     if os.path.exists(platform_exe_path):
-        logger.info(f'{Fore.GREEN}Using platform-specific executable: {base_exe_name}{Style.RESET_ALL}')
+        logger.info(f'{Fore.GREEN}Using executable: {base_exe_name}{Style.RESET_ALL}')
         return platform_exe_path
 
     # Finally, check for generic executable
     generic_exe_path = os.path.join(helpers_dir, 'pyarmor-1shot')
     if os.path.exists(generic_exe_path):
-        logger.info(f'{Fore.GREEN}Using generic executable: pyarmor-1shot{Style.RESET_ALL}')
+        logger.info(f'{Fore.GREEN}Using executable: pyarmor-1shot{Style.RESET_ALL}')
         return generic_exe_path
 
     logger.critical(f'{Fore.RED}Executable {base_exe_name} not found, please build it first or download on https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/releases {Style.RESET_ALL}')
@@ -273,7 +226,6 @@ def parse_args():
         'directory',
         help='the "root" directory of obfuscated scripts',
         type=str,
-        nargs='?',
     )
     parser.add_argument(
         '-r',
@@ -308,11 +260,6 @@ def parse_args():
         action='store_true',
     )
     parser.add_argument(
-        '--menu',
-        help='show interactive menu to select folder to unpack',
-        action='store_true',
-    )
-    parser.add_argument(
         '--concurrent',
         help='number of concurrent deobfuscation processes (default: 4)',
         type=int,
@@ -325,41 +272,6 @@ def parse_args():
         type=str,
     )
     return parser.parse_args()
-
-
-def display_menu():
-    to_unpack_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'to_unpack')
-    
-    if not os.path.exists(to_unpack_dir):
-        os.makedirs(to_unpack_dir)
-       
-    folders = [d for d in os.listdir(to_unpack_dir) 
-               if os.path.isdir(os.path.join(to_unpack_dir, d))]
-    
-    if not folders:
-        print(f"{Fore.YELLOW}No folders found in {to_unpack_dir}{Style.RESET_ALL}")
-        return None
-    
-    print(f"\n{Fore.CYAN}=== Available Folders to Unpack ==={Style.RESET_ALL}")
-    for i, folder in enumerate(folders, 1):
-        print(f"{Fore.GREEN}[{i}]{Style.RESET_ALL} {folder}")
-    
-    while True:
-        try:
-            choice = input(f"\n{Fore.YELLOW}Enter the number of the folder to unpack (or 'q' to quit): {Style.RESET_ALL}")
-            if choice.lower() == 'q':
-                return None
-            
-            choice_idx = int(choice) - 1
-            if 0 <= choice_idx < len(folders):
-                selected_folder = folders[choice_idx]
-                full_path = os.path.join(to_unpack_dir, selected_folder)
-                print(f"{Fore.GREEN}Selected: {selected_folder}{Style.RESET_ALL}")
-                return full_path
-            else:
-                print(f"{Fore.RED}Invalid choice. Please enter a number between 1 and {len(folders)}{Style.RESET_ALL}")
-        except ValueError:
-            print(f"{Fore.RED}Please enter a valid number{Style.RESET_ALL}")
 
 
 def main():
@@ -386,15 +298,6 @@ def main():
               For technology exchange only. Use at your own risk.
         GitHub: https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot
 ''' + Style.RESET_ALL)
-
-    # If menu option is selected or no directory is provided, show the menu
-    if args.menu or not args.directory:
-        selected_dir = display_menu()
-        if selected_dir:
-            args.directory = selected_dir
-        else:
-            print(f"{Fore.YELLOW}No directory selected. Exiting.{Style.RESET_ALL}")
-            return
 
     if args.runtime:
         specified_runtime = RuntimeInfo(args.runtime)
