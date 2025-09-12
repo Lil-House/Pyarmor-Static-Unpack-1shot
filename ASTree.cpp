@@ -109,9 +109,45 @@ PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *
         return new ASTImport(new ASTName(new_str), nullptr);
     }
     case 4:
+    {
+        PycBuffer buf(result.data(), (int)result.length());
+        auto obj = new ASTObject(LoadObject(&buf, mod));
+        // (pyarmor__1, pyarmor__2, pyarmor__3) = ('builtins', ('enumerate', 'ImportError', 'hasattr'), 0)
+        //                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        auto tuple = obj->object().try_cast<PycTuple>();
+        if (tuple == nullptr)
+        {
+            fprintf(stderr, "__pyarmor_assert__ bytes type 4 did not load a tuple, got object type %d\n", obj->object()->type());
+            return obj;
+        }
+        if (tuple->size() < 2)
+        {
+            fprintf(stderr, "__pyarmor_assert__ bytes type 4 loaded tuple with size %d\n", (int)tuple->size());
+            return obj;
+        }
+        auto import_name = tuple->values().at(0).try_cast<PycString>();
+        auto fromlist_tuple_strs = tuple->values().at(1).try_cast<PycTuple>();
+        if (import_name == nullptr || fromlist_tuple_strs == nullptr)
+        {
+            fprintf(stderr, "__pyarmor_assert__ bytes type 4 loaded tuple with invalid types\n");
+            return obj;
+        }
+        auto fromlist = new ASTTuple(ASTTuple::value_t());
+        for (const auto &val : fromlist_tuple_strs->values())
+        {
+            auto str = val.try_cast<PycString>();
+            if (str == nullptr)
+            {
+                fprintf(stderr, "__pyarmor_assert__ bytes type 4 loaded fromlist with non-string type\n");
+                return obj;
+            }
+            fromlist->add(new ASTName(str));
+        }
+        return new ASTImport(new ASTName(import_name), fromlist);
+    }
     default:
     {
-        fprintf(stderr, "Unknown PyarmorAssert string first byte: %d\n", inputString[0] & 0x7F);
+        fprintf(stderr, "Unknown __pyarmor_assert__ bytes type: %d\n", inputString[0] & 0x7F);
         PycRef<PycString> new_str = new PycString(PycString::TYPE_UNICODE);
         new_str->setValue((char)(inputString[0] & 0x7F) + result);
         return new ASTObject(new_str.cast<PycObject>());
@@ -2497,6 +2533,17 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                             curblock.cast<ASTIterBlock>()->setIndex(tup);
                         } else if (seq.type() == ASTNode::NODE_CHAINSTORE) {
                             append_to_chain_store(seq, tup, stack, curblock);
+                        } else if (seq.type() == ASTNode::NODE_IMPORT) {
+                            // This node is generated when handling PyarmorAssert bytes type 4
+                            auto import = seq.try_cast<ASTImport>();
+                            auto fromlist_tuple = import->fromlist().try_cast<ASTTuple>()->values();
+                            auto store_tuple = tup.try_cast<ASTTuple>()->values();
+                            auto real_import = new ASTImport(import->name(), nullptr);
+                            for (size_t i = 0; i < fromlist_tuple.size() && i < store_tuple.size(); i++)
+                            {
+                                real_import->add_store(new ASTStore(fromlist_tuple[i], store_tuple[i]));
+                            }
+                            curblock->append(real_import);
                         } else {
                             curblock->append(new ASTStore(seq, tup));
                         }
