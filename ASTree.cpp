@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cstdint>
 #include <stdexcept>
+#include <unordered_set>
 #include "ASTree.h"
 #include "FastStack.h"
 #include "pyc_numeric.h"
@@ -1483,8 +1484,12 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     break;
                 }
 
-                stack = stack_hist.top();
-                stack_hist.pop();
+                if (!stack_hist.empty()) {
+                    stack = stack_hist.top();
+                    stack_hist.pop();
+                } else {
+                    fprintf(stderr, "Warning: Stack history is empty, something wrong might have happened\n");
+                }
 
                 PycRef<ASTBlock> prev = curblock;
                 PycRef<ASTBlock> nil;
@@ -1655,10 +1660,10 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
 
                 } while (prev != nil);
 
-                curblock = blocks.top();
-
-                if (curblock->blktype() == ASTBlock::BLK_EXCEPT) {
-                    curblock->setEnd(pos+offs);
+                if (!blocks.empty()) {
+                    curblock = blocks.top();
+                    if (curblock->blktype() == ASTBlock::BLK_EXCEPT)
+                        curblock->setEnd(pos+offs);
                 }
             }
             break;
@@ -2076,7 +2081,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 else
                     curblock->append(new ASTPrint(stack.top(), stream));
                 stack.pop();
-                stream->setProcessed();
+                if (stream)
+                    stream->setProcessed();
             }
             break;
         case Pyc::PRINT_NEWLINE:
@@ -2104,7 +2110,8 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 else
                     curblock->append(new ASTPrint(nullptr, stream));
                 stack.pop();
-                stream->setProcessed();
+                if (stream)
+                    stream->setProcessed();
             }
             break;
         case Pyc::RAISE_VARARGS_A:
@@ -3134,6 +3141,8 @@ void print_formatted_value(PycRef<ASTFormattedValue> formatted_value, PycModule*
     pyc_output << "}";
 }
 
+static std::unordered_set<ASTNode *> node_seen;
+
 void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
 {
     if (node == NULL) {
@@ -3141,6 +3150,12 @@ void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
         cleanBuild = true;
         return;
     }
+
+    if (node_seen.find((ASTNode *)node) != node_seen.end()) {
+        fputs("WARNING: Circular reference detected\n", stderr);
+        return;
+    }
+    node_seen.insert((ASTNode *)node);
 
     switch (node->type()) {
     case ASTNode::NODE_BINARY:
@@ -3803,10 +3818,12 @@ void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
         pyc_output << "<NODE:" << node->type() << ">";
         fprintf(stderr, "Unsupported Node type: %d\n", node->type());
         cleanBuild = false;
+        node_seen.erase((ASTNode *)node);
         return;
     }
 
     cleanBuild = true;
+    node_seen.erase((ASTNode *)node);
 }
 
 bool print_docstring(PycRef<PycObject> obj, int indent, PycModule* mod,
@@ -3823,8 +3840,16 @@ bool print_docstring(PycRef<PycObject> obj, int indent, PycModule* mod,
     return false;
 }
 
+static std::unordered_set<PycCode *> code_seen;
+
 void decompyle(PycRef<PycCode> code, PycModule* mod, std::ostream& pyc_output)
 {
+    if (code_seen.find((PycCode *)code) != code_seen.end()) {
+        fputs("WARNING: Circular reference detected\n", stderr);
+        return;
+    }
+    code_seen.insert((PycCode *)code);
+
     PycRef<ASTNode> source = BuildFromCode(code, mod);
 
     PycRef<ASTNodeList> clean = source.cast<ASTNodeList>();
@@ -3918,4 +3943,6 @@ void decompyle(PycRef<PycCode> code, PycModule* mod, std::ostream& pyc_output)
         start_line(cur_indent, pyc_output);
         pyc_output << "# WARNING: Decompyle incomplete\n";
     }
+
+    code_seen.erase((PycCode *)code);
 }
