@@ -133,9 +133,10 @@ void PycCode::load(PycData* stream, PycModule* mod)
 
     unsigned char pyarmor_fn_count = extra_data[0] & 3;
     unsigned char pyarmor_co_descriptor_count = (extra_data[0] >> 2) & 3;
-    if (extra_data[0] & 0xF0)
+    bool _pyarmor_bcc = (extra_data[0] >> 4) & 1;
+    if (extra_data[0] & 0xE0)
     {
-        fprintf(stderr, "Unsupported Pyarmor CO extra flag (%02X)\n", extra_data[0]);
+        fprintf(stderr, "Unsupported Pyarmor CO extra flag (0x%02X)\n", extra_data[0]);
         fprintf(stderr, "Please open an issue at https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues to request support and help to make this tool better.\n");
     }
     if (pyarmor_co_descriptor_count > 1)
