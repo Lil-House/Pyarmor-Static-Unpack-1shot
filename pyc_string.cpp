@@ -173,8 +173,8 @@ void PycString::dasPrintAndDecrypt(std::ostream &stream, PycModule *mod, bool tr
         mod->pyarmor_aes_key,
         16,
         &nonce);
-    
-    PycString decrypted(TYPE_UNICODE);
+
+    PycString decrypted(m_value[0] & 1 ? TYPE_UNICODE : TYPE_STRING);
     decrypted.setValue(result);
     decrypted.print(stream, mod, triple, parent_f_string_quote);
     stream << "   # ";

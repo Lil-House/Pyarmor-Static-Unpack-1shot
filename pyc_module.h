@@ -47,6 +47,7 @@ public:
     void loadFromFile(const char* filename);
     void loadFromMarshalledFile(const char *filename, int major, int minor);
     void loadFromOneshotSequenceFile(const char* filename);
+    void copyFrom(const PycModule& mod);
     bool isValid() const { return (m_maj >= 0) && (m_min >= 0); }
 
     int majorVer() const { return m_maj; }

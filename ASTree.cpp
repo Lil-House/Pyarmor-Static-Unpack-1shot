@@ -101,7 +101,9 @@ PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *
     case 2:
     {
         PycBuffer buf(result.data(), (int)result.length());
-        return new ASTObject(LoadObject(&buf, mod));
+        PycModule temp_mod;
+        temp_mod.copyFrom(*mod);
+        return new ASTObject(LoadObject(&buf, &temp_mod));
     }
     case 3:
     {
@@ -112,7 +114,9 @@ PycRef<ASTNode> PyarmorMixStrDecrypt(const std::string &inputString, PycModule *
     case 4:
     {
         PycBuffer buf(result.data(), (int)result.length());
-        auto obj = new ASTObject(LoadObject(&buf, mod));
+        PycModule temp_mod;
+        temp_mod.copyFrom(*mod);
+        auto obj = new ASTObject(LoadObject(&buf, &temp_mod));
         // (pyarmor__1, pyarmor__2, pyarmor__3) = ('builtins', ('enumerate', 'ImportError', 'hasattr'), 0)
         //                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         auto tuple = obj->object().try_cast<PycTuple>();

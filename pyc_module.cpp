@@ -327,6 +327,17 @@ void PycModule::loadFromOneshotSequenceFile(const char *filename)
     m_code = LoadObject(&in, this).cast<PycCode>();
 }
 
+void PycModule::copyFrom(const PycModule& mod)
+{
+    this->m_maj = mod.m_maj;
+    this->m_min = mod.m_min;
+    this->m_unicode = mod.m_unicode;
+    std::memcpy(this->pyarmor_aes_key, mod.pyarmor_aes_key, 16);
+    std::memcpy(this->pyarmor_mix_str_aes_nonce, mod.pyarmor_mix_str_aes_nonce, 12);
+    this->pyarmor_co_code_aes_nonce_xor_enabled = mod.pyarmor_co_code_aes_nonce_xor_enabled;
+    std::memcpy(this->pyarmor_co_code_aes_nonce_xor_key, mod.pyarmor_co_code_aes_nonce_xor_key, 12);
+}
+
 #define GET_REAL_OPERAND_2_AND_ADD_CURRENT_PTR(CUR, REF)   \
     do                                                     \
     {                                                      \
