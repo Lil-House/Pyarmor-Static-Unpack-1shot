@@ -2394,6 +2394,19 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
 
                         if (seq.type() == ASTNode::NODE_CHAINSTORE) {
                             append_to_chain_store(seq, tup, stack, curblock);
+            // BEGIN ONESHOT TEMPORARY PATCH
+                        } else if (seq.type() == ASTNode::NODE_IMPORT) {
+                            // This node is generated when handling PyarmorAssert bytes type 4
+                            auto import = seq.try_cast<ASTImport>();
+                            auto fromlist_tuple = import->fromlist().try_cast<ASTTuple>()->values();
+                            auto store_tuple = tup.try_cast<ASTTuple>()->values();
+                            auto real_import = new ASTImport(import->name(), nullptr);
+                            for (size_t i = 0; i < fromlist_tuple.size() && i < store_tuple.size(); i++)
+                            {
+                                real_import->add_store(new ASTStore(fromlist_tuple[i], store_tuple[i]));
+                            }
+                            curblock->append(real_import);
+            // END ONESHOT PATCH
                         } else {
                             curblock->append(new ASTStore(seq, tup));
                         }
@@ -2441,6 +2454,19 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                             curblock.cast<ASTIterBlock>()->setIndex(tup);
                         } else if (seq.type() == ASTNode::NODE_CHAINSTORE) {
                             append_to_chain_store(seq, tup, stack, curblock);
+            // BEGIN ONESHOT TEMPORARY PATCH
+                        } else if (seq.type() == ASTNode::NODE_IMPORT) {
+                            // This node is generated when handling PyarmorAssert bytes type 4
+                            auto import = seq.try_cast<ASTImport>();
+                            auto fromlist_tuple = import->fromlist().try_cast<ASTTuple>()->values();
+                            auto store_tuple = tup.try_cast<ASTTuple>()->values();
+                            auto real_import = new ASTImport(import->name(), nullptr);
+                            for (size_t i = 0; i < fromlist_tuple.size() && i < store_tuple.size(); i++)
+                            {
+                                real_import->add_store(new ASTStore(fromlist_tuple[i], store_tuple[i]));
+                            }
+                            curblock->append(real_import);
+            // END ONESHOT PATCH
                         } else {
                             curblock->append(new ASTStore(seq, tup));
                         }
@@ -2501,6 +2527,19 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                             curblock.cast<ASTIterBlock>()->setIndex(tup);
                         } else if (seq.type() == ASTNode::NODE_CHAINSTORE) {
                             append_to_chain_store(seq, tup, stack, curblock);
+            // BEGIN ONESHOT TEMPORARY PATCH
+                        } else if (seq.type() == ASTNode::NODE_IMPORT) {
+                            // This node is generated when handling PyarmorAssert bytes type 4
+                            auto import = seq.try_cast<ASTImport>();
+                            auto fromlist_tuple = import->fromlist().try_cast<ASTTuple>()->values();
+                            auto store_tuple = tup.try_cast<ASTTuple>()->values();
+                            auto real_import = new ASTImport(import->name(), nullptr);
+                            for (size_t i = 0; i < fromlist_tuple.size() && i < store_tuple.size(); i++)
+                            {
+                                real_import->add_store(new ASTStore(fromlist_tuple[i], store_tuple[i]));
+                            }
+                            curblock->append(real_import);
+            // END ONESHOT PATCH
                         } else {
                             curblock->append(new ASTStore(seq, tup));
                         }
@@ -2544,6 +2583,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                             curblock.cast<ASTIterBlock>()->setIndex(tup);
                         } else if (seq.type() == ASTNode::NODE_CHAINSTORE) {
                             append_to_chain_store(seq, tup, stack, curblock);
+            // BEGIN ONESHOT TEMPORARY PATCH
                         } else if (seq.type() == ASTNode::NODE_IMPORT) {
                             // This node is generated when handling PyarmorAssert bytes type 4
                             auto import = seq.try_cast<ASTImport>();
@@ -2555,6 +2595,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                                 real_import->add_store(new ASTStore(fromlist_tuple[i], store_tuple[i]));
                             }
                             curblock->append(real_import);
+            // END ONESHOT PATCH
                         } else {
                             curblock->append(new ASTStore(seq, tup));
                         }
