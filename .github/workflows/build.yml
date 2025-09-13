@@ -3,21 +3,36 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths:
+      - 'pycdc/**'
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: 
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build
+        if: matrix.os != 'windows-latest'
         run: |
           mkdir build
           cd build
-          cmake ..
+          cmake ../pycdc
+          cmake --build . --config Debug
+          cmake --install .
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir build
+          cd build
+          cmake -G "MinGW Makefiles" ../pycdc
           cmake --build . --config Debug
           cmake --install .
 
@@ -26,30 +41,8 @@ jobs:
         with:
           name: pyarmor-1shot-build-${{ matrix.os }}
           path: |
-            helpers
+            oneshot
             README.md
-            README-Decompyle++.markdown
             LICENSE
-
-  windows-build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build
-        run: |
-          mkdir build
-          cd build
-          cmake -G "MinGW Makefiles" ..
-          cmake --build . --config Debug
-          cmake --install .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyarmor-1shot-build-windows
-          path: |
-            helpers
-            README.md
-            README-Decompyle++.markdown
-            LICENSE
+            pycdc/README-Decompyle++.markdown
+            pycdc/LICENSE

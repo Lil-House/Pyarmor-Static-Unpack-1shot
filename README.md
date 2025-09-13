@@ -41,7 +41,7 @@ The only thing you need to do is specifying where your obfuscated scripts are. T
 ``` bash
 mkdir build
 cd build
-cmake ..
+cmake ../pycdc
 cmake --build .
 cmake --install .
 ```
@@ -51,10 +51,10 @@ You can also download prebuilt binary files on [releases page](https://github.co
 ## Usage
 
 ``` bash
-python /path/to/helpers/shot.py /path/to/scripts
+python /path/to/oneshot/shot.py /path/to/scripts
 ```
 
-Before running `shot.py`, make sure the executable `pyarmor-1shot` (`pyarmor-1shot.exe` on Windows) exists in `helpers` directory.
+Before running `shot.py`, make sure the executable `pyarmor-1shot` (`pyarmor-1shot.exe` on Windows) exists in `oneshot` directory.
 
 You only need to specify the directory that contains all armored data and `pyarmor_runtime`. The tool finds and handles them recursively as much as possible.
 

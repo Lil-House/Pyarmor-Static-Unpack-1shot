@@ -133,7 +133,7 @@ void PycCode::load(PycData* stream, PycModule* mod)
 
     unsigned char pyarmor_fn_count = extra_data[0] & 3;
     unsigned char pyarmor_co_descriptor_count = (extra_data[0] >> 2) & 3;
-    bool _pyarmor_bcc = (extra_data[0] >> 4) & 1;
+    // bool _pyarmor_bcc = (extra_data[0] >> 4) & 1;
     if (extra_data[0] & 0xE0)
     {
         fprintf(stderr, "Unsupported Pyarmor CO extra flag (0x%02X)\n", extra_data[0]);

@@ -178,7 +178,7 @@ def get_platform_executable(args) -> str:
         else:
             logger.warning(f'{Fore.YELLOW}Specified executable not found: {args.executable}{Style.RESET_ALL}')
 
-    helpers_dir = os.path.dirname(os.path.abspath(__file__))
+    oneshot_dir = os.path.dirname(os.path.abspath(__file__))
 
     system = platform.system().lower()
     machine = platform.machine().lower()
@@ -188,7 +188,7 @@ def get_platform_executable(args) -> str:
     if system == 'windows':
         arch_specific_exe += '.exe'
 
-    arch_exe_path = os.path.join(helpers_dir, arch_specific_exe)
+    arch_exe_path = os.path.join(oneshot_dir, arch_specific_exe)
     if os.path.exists(arch_exe_path):
         logger.info(f'{Fore.GREEN}Using architecture-specific executable: {arch_specific_exe}{Style.RESET_ALL}')
         return arch_exe_path
@@ -201,13 +201,13 @@ def get_platform_executable(args) -> str:
     base_exe_name = platform_map.get(system, 'pyarmor-1shot')
 
     # Then check for platform-specific executable
-    platform_exe_path = os.path.join(helpers_dir, base_exe_name)
+    platform_exe_path = os.path.join(oneshot_dir, base_exe_name)
     if os.path.exists(platform_exe_path):
         logger.info(f'{Fore.GREEN}Using executable: {base_exe_name}{Style.RESET_ALL}')
         return platform_exe_path
 
     # Finally, check for generic executable
-    generic_exe_path = os.path.join(helpers_dir, 'pyarmor-1shot')
+    generic_exe_path = os.path.join(oneshot_dir, 'pyarmor-1shot')
     if os.path.exists(generic_exe_path):
         logger.info(f'{Fore.GREEN}Using executable: pyarmor-1shot{Style.RESET_ALL}')
         return generic_exe_path

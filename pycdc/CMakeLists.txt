@@ -69,4 +69,4 @@ add_executable(pyarmor-1shot
 )
 
 install(TARGETS pyarmor-1shot
-    RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/helpers)
+    RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/../oneshot)
