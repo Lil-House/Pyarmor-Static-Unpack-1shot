@@ -4,6 +4,14 @@
 
 This project aims to convert armored data back to bytecode assembly and (experimentally) source code. We forked the awesome [Decompyle++](https://github.com/zrax/pycdc) (aka pycdc), and added some processes on it like modifying abstract syntax tree.
 
+> [!IMPORTANT]
+>
+> This tool should only be used on scripts you own or have permission to analyze. Please respect software licenses and terms of service. The author is not responsible for any misuse or damage caused by this tool.
+
+> [!NOTE]
+>
+> Like other decompilers, this tool is intended for professional users. You should have a basic understanding of Python bytecode. If not, you may need to ask for help from someone who does.
+
 > [!WARNING]
 >
 > **Disassembly results are accurate, but decompiled code can be incomplete and incorrect.** [See issue #3](https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues/3)
@@ -16,7 +24,7 @@ You don't need to execute the encrypted script. We decrypt them using the same a
 
 ### Universal
 
-Currently we are trying to support Pyarmor 8.0 to 9.1.3 (latest), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
+Currently we are trying to support Pyarmor 8.0 to 9.1.x (latest), Python 3.7 - 3.13, on all operating systems, with obfuscating options as many as possible. (However, we only have limited tests.)
 
 You can run this tool in any environment, no need to be the same with obfuscated scripts or runtime.
 
@@ -68,3 +76,8 @@ Feel free to open an issue if you have any questions, suggestions, or problems. 
 - [ ] Multi-platform pyarmor_runtime executable
 - [ ] Support more obfuscating options
 - [ ] Regenerate pyc for other backends
+- [ ] Documentation (Do not accept PR about this)
+
+## Star Chart
+
+[![Stargazers over time](https://starchart.cc/Lil-House/Pyarmor-Static-Unpack-1shot.svg?variant=adaptive)](https://starchart.cc/Lil-House/Pyarmor-Static-Unpack-1shot)

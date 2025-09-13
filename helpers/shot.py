@@ -27,39 +27,6 @@ def general_aes_ctr_decrypt(data: bytes, key: bytes, nonce: bytes) -> bytes:
     return cipher.decrypt(data)
 
 
-def bcc_fallback_method(seq_file_path: str, output_path: str = None):
-    # Fallback method for BCC mode deobfuscation
-    logger = logging.getLogger('shot')
-    logger.info(f'{Fore.YELLOW}Attempting BCC fallback method for: {seq_file_path}{Style.RESET_ALL}')
-    
-    if output_path is None:
-        output_path = seq_file_path + '.back.1shot.seq'
-    
-    try:
-        with open(seq_file_path, 'rb') as f:
-            origin = f.read()
-        
-        one_shot_header = origin[:32]   # Header format
-        aes_key = one_shot_header[1:17]
-        
-        bcc_part_length = int.from_bytes(origin[0x58:0x5C], 'little')   # If it is 0, it is not BCC part but bytecode part
-        bytecode_part = origin[32+bcc_part_length:]
-        aes_nonce = bytecode_part[36:40] + bytecode_part[44:52]   # The same position as non-BCC file
-        
-        with open(output_path, 'wb') as f:
-            f.write(one_shot_header)
-            f.write(bytecode_part[:64])
-            f.write(general_aes_ctr_decrypt(bytecode_part[64:], aes_key, aes_nonce))
-        
-        logger.info(f'{Fore.GREEN}Successfully created BCC fallback file: {output_path}{Style.RESET_ALL}')
-        return output_path
-    except Exception as e:
-        error_details = traceback.format_exc()
-        logger.error(f'{Fore.RED}BCC fallback method failed: {e}{Style.RESET_ALL}')
-        logger.error(f'{Fore.RED}Error details: {error_details}{Style.RESET_ALL}')
-        return None
-
-
 async def decrypt_file_async(exe_path, seq_file_path, path, args):
     logger = logging.getLogger('shot')
     try:
@@ -134,6 +101,36 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                 if args.export_raw_data:
                     with open(dest_path + '.1shot.raw', 'wb') as f:
                         f.write(data)
+
+                # Check BCC
+                if int.from_bytes(data[20:24], 'little') == 9:
+                    cipher_text_offset = int.from_bytes(data[28:32], 'little')
+                    cipher_text_length = int.from_bytes(data[32:36], 'little')
+                    nonce = data[36:40] + data[44:52]
+                    bcc_aes_decrypted = general_aes_ctr_decrypt(
+                        data[cipher_text_offset:cipher_text_offset+cipher_text_length], runtime.runtime_aes_key, nonce)
+                    data = data[int.from_bytes(data[56:60], 'little'):]
+                    bcc_architecture_mapping = {
+                        0x2001: 'dll',  # Windows x86-64
+                        0x2003: 'so',   # Linux x86-64
+                    }
+                    while True:
+                        if len(bcc_aes_decrypted) < 16:
+                            break
+                        bcc_segment_offset = int.from_bytes(bcc_aes_decrypted[0:4], 'little')
+                        bcc_segment_length = int.from_bytes(bcc_aes_decrypted[4:8], 'little')
+                        bcc_architecture_id = int.from_bytes(bcc_aes_decrypted[8:12], 'little')
+                        bcc_next_segment_offset = int.from_bytes(bcc_aes_decrypted[12:16], 'little')
+                        if bcc_architecture_id in bcc_architecture_mapping:
+                            bcc_file_path = f'{dest_path}.1shot.bcc.{bcc_architecture_mapping[bcc_architecture_id]}'
+                        else:
+                            bcc_file_path = f'{dest_path}.1shot.bcc.0x{bcc_architecture_id:x}'
+                        with open(bcc_file_path, 'wb') as f:
+                            f.write(bcc_aes_decrypted[bcc_segment_offset:bcc_segment_offset+bcc_segment_length])
+                        logger.info(f'{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}')
+                        if bcc_next_segment_offset == 0:
+                            break
+                        bcc_aes_decrypted = bcc_aes_decrypted[bcc_next_segment_offset:]
 
                 cipher_text_offset = int.from_bytes(data[28:32], 'little')
                 cipher_text_length = int.from_bytes(data[32:36], 'little')

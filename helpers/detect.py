@@ -51,21 +51,24 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
             # compressed or coincident, skip
             data = data[5:]
             continue
-        result.append(data[:header_len + body_len])
 
-        # maybe followed by data for other Python versions from the same file,
-        # we do not extract them
-        followed_by_another_equivalent = int.from_bytes(
-            data[56:60], 'little') != 0
-        data = data[header_len + body_len:]
-        while followed_by_another_equivalent \
-                and data.startswith(b'PY00') \
-                and len(data) >= 64:
-            header_len = int.from_bytes(data[28:32], 'little')
-            body_len = int.from_bytes(data[32:36], 'little')
-            followed_by_another_equivalent = int.from_bytes(
-                data[56:60], 'little') != 0
-            data = data[header_len + body_len:]
+        complete_object_length = header_len + body_len
+
+        # maybe followed by data for other Python versions or another part of BCC
+        next_segment_offset = int.from_bytes(data[56:60], 'little')
+        data_next = data[next_segment_offset:]
+        while next_segment_offset != 0 and data_next.startswith(b'PY00') and len(data_next) >= 64:
+            header_len = int.from_bytes(data_next[28:32], 'little')
+            body_len = int.from_bytes(data_next[32:36], 'little')
+            complete_object_length = next_segment_offset + header_len + body_len
+
+            if int.from_bytes(data_next[56:60], 'little') == 0:
+                break
+            next_segment_offset += int.from_bytes(data_next[56:60], 'little')
+            data_next = data[next_segment_offset:]
+
+        result.append(data[:complete_object_length])
+        data = data[complete_object_length:]
     return result
 
 
