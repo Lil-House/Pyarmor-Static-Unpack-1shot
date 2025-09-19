@@ -309,6 +309,10 @@ def main():
     if args.output_dir and not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    if args.output_dir and not os.path.isdir(args.output_dir):
+        logger.error(f'{Fore.RED}Cannot use {repr(args.output_dir)} as output directory{Style.RESET_ALL}')
+        return
+
     if os.path.isfile(args.directory):
         if specified_runtime is None:
             logger.error(f'{Fore.RED}Please specify `pyarmor_runtime` file by `-r` if input is a file{Style.RESET_ALL}')
