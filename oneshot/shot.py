@@ -111,8 +111,8 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                         data[cipher_text_offset:cipher_text_offset+cipher_text_length], runtime.runtime_aes_key, nonce)
                     data = data[int.from_bytes(data[56:60], 'little'):]
                     bcc_architecture_mapping = {
-                        0x2001: 'dll',  # Windows x86-64
-                        0x2003: 'so',   # Linux x86-64
+                        0x2001: 'win-x64',
+                        0x2003: 'linux-x64',
                     }
                     while True:
                         if len(bcc_aes_decrypted) < 16:
@@ -121,10 +121,8 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                         bcc_segment_length = int.from_bytes(bcc_aes_decrypted[4:8], 'little')
                         bcc_architecture_id = int.from_bytes(bcc_aes_decrypted[8:12], 'little')
                         bcc_next_segment_offset = int.from_bytes(bcc_aes_decrypted[12:16], 'little')
-                        if bcc_architecture_id in bcc_architecture_mapping:
-                            bcc_file_path = f'{dest_path}.1shot.bcc.{bcc_architecture_mapping[bcc_architecture_id]}'
-                        else:
-                            bcc_file_path = f'{dest_path}.1shot.bcc.0x{bcc_architecture_id:x}'
+                        bcc_architecture = bcc_architecture_mapping.get(bcc_architecture_id, f'0x{bcc_architecture_id:x}')
+                        bcc_file_path = f'{dest_path}.1shot.bcc.{bcc_architecture}.elf'
                         with open(bcc_file_path, 'wb') as f:
                             f.write(bcc_aes_decrypted[bcc_segment_offset:bcc_segment_offset+bcc_segment_length])
                         logger.info(f'{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}')
