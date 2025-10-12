@@ -85,6 +85,33 @@ class RuntimeInfo:
     def mix_str_aes_nonce(self) -> bytes:
         return self.part_3[:12]
 
+    @classmethod
+    def default(cls) -> 'RuntimeInfo':
+        instance = cls.__new__(cls)
+        instance.file_path = '<default>'
+        instance.part_1 = b'pyarmor-vax-000000\x00\x00'
+        instance.part_2 = bytes.fromhex('''
+            30 81 89 02 81 81 00 A8 ED 64 F4 83 49 13 FC 0F
+            86 6F 00 5A 8F E4 91 AA ED 1C EA D4 BB 4C 3F 7C
+            24 21 01 A8 D0 7D 93 F4 BF E7 FB 8C 06 57 88 6A
+            2E 9B 54 53 D5 7B 8F F6 83 DF 72 00 42 A3 2D 18
+            30 AD 3A E4 F1 E4 3A 3C 8C EA F5 46 F3 BB 75 62
+            11 84 FB 3F 3B 4C 35 61 4E 46 A1 E0 9E 3C B6 7A
+            BA 52 C5 B6 40 F6 AD AB BC D5 CF 5B 40 CB 8D 13
+            C4 28 B8 90 93 C4 76 01 09 8E 05 1E 61 FA 90 4C
+            BF 67 D4 A7 D5 82 C1 02 03 01 00 01
+            ''')
+        instance.part_3 = bytes.fromhex('''
+            69 2E 6E 6F 6E 2D 70 72 6F 66 69 74 73 E7 5A 41
+            9B DC 77 53 CA 1D E7 04 EB EF DA C9 A3 6C 0F 7B
+            00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00
+            ''')
+        instance.serial_number = '000000'
+        instance.runtime_aes_key = instance.calc_aes_key()
+        return instance
+
 
 if __name__ == '__main__':
     import sys

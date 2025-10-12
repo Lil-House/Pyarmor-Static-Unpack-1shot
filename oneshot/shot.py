@@ -300,7 +300,7 @@ def main():
         runtimes = {specified_runtime.serial_number: specified_runtime}
     else:
         specified_runtime = None
-        runtimes = {}
+        runtimes = {'000000': RuntimeInfo.default()}
 
     sequences: List[Tuple[str, bytes]] = []
 
