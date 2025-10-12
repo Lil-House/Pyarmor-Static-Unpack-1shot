@@ -170,7 +170,11 @@ void CallOrPyarmorBuiltins(FastStack &stack, PycRef<ASTBlock> &curblock, PycModu
         return;
 
     PycRef<PycString> func_name = call->func().cast<ASTObject>()->object().try_cast<PycString>();
-    if (func_name == nullptr || !func_name->startsWith("__pyarmor_"))
+    if (
+        func_name == nullptr
+        || !func_name->startsWith("__pyarmor_")
+        || func_name->startsWith("__pyarmor_bcc_")
+    )
         return;
 
     const std::string& name = func_name->strValue();
