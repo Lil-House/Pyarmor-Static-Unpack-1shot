@@ -288,7 +288,7 @@ def main():
  |  |  |_|    \_, |\__,_|_|  |_||_||_|\___/|_|   |_|___/|_||_|\___/ \__|  |  | 
  |  |         |__/                                                        |  | 
  |__|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|__| 
-(____)                                                                   (____)
+(____)                                                        v0.2.0+    (____)
 
               For technology exchange only. Use at your own risk.
         GitHub: https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot

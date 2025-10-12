@@ -78,6 +78,12 @@ Feel free to open an issue if you have any questions, suggestions, or problems. 
 - [ ] Regenerate pyc for other backends
 - [ ] Documentation (Do not accept PR about this)
 
+## For CTF Challenge Makers
+
+Please, don't make CTF (Capture The Flag) **REVERSE** challenges that are about finding and using existing **TOOLS**. It is not fun for anyone. It is more like a game of hide-and-seek, rather than a test of skill and ingenuity.
+
+It is more meaningful to understand how Pyarmor or this tool works, and then try to improve them.
+
 ## Star Chart
 
 [![Stargazers over time](https://starchart.cc/Lil-House/Pyarmor-Static-Unpack-1shot.svg?variant=adaptive)](https://starchart.cc/Lil-House/Pyarmor-Static-Unpack-1shot)
