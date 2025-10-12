@@ -7,7 +7,7 @@
 
 #include "ASTree.h"
 
-const char* VERSION = "v0.2.0+";
+const char* VERSION = "v0.2.1";
 
 int main(int argc, char* argv[])
 {

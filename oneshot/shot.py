@@ -122,7 +122,7 @@ async def decrypt_process_async(runtimes: Dict[str, RuntimeInfo], sequences: Lis
                         bcc_architecture_id = int.from_bytes(bcc_aes_decrypted[8:12], 'little')
                         bcc_next_segment_offset = int.from_bytes(bcc_aes_decrypted[12:16], 'little')
                         bcc_architecture = bcc_architecture_mapping.get(bcc_architecture_id, f'0x{bcc_architecture_id:x}')
-                        bcc_file_path = f'{dest_path}.1shot.bcc.{bcc_architecture}.elf'
+                        bcc_file_path = f'{dest_path}.1shot.bcc.{bcc_architecture}.so'
                         with open(bcc_file_path, 'wb') as f:
                             f.write(bcc_aes_decrypted[bcc_segment_offset:bcc_segment_offset+bcc_segment_length])
                         logger.info(f'{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}')
@@ -288,7 +288,7 @@ def main():
  |  |  |_|    \_, |\__,_|_|  |_||_||_|\___/|_|   |_|___/|_||_|\___/ \__|  |  | 
  |  |         |__/                                                        |  | 
  |__|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|__| 
-(____)                                                        v0.2.0+    (____)
+(____)                                                        v0.2.1     (____)
 
               For technology exchange only. Use at your own risk.
         GitHub: https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot
