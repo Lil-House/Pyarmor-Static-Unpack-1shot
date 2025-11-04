@@ -1,4 +1,7 @@
 import hashlib
+import logging
+
+from util import dword, bytes_sub
 
 
 GLOBAL_CERT = bytes.fromhex("""
@@ -20,6 +23,9 @@ af 09 fb 04 54 a9 ea c0 c1 e9 32 6c 77 92 7f 9f
 59 10 96 53 2e 5d c7 42 12 b8 61 cb 2c 5f 46 14 
 9e 93 b0 53 21 a2 74 34 2d 02 03 01 00 01
 """)
+
+
+logger = logging.getLogger("runtime")
 
 
 class RuntimeInfo:
@@ -65,19 +71,35 @@ class RuntimeInfo:
         if data[cur + 11 : cur + 18] == b"\x00" * 7:
             raise ValueError(f"{self.file_path} is a runtime template")
 
-        self.part_1 = data[cur : cur + 20]
+        # Align with pyd file and executable address:
+        # In .pyd files b"pyarmor-vax" locates at 0x???2C
+        # But not .so
+        data = bytearray(bytes_sub(data, cur - 0x2C, 0x800))
 
-        cur += 36
-        part_2_offset = int.from_bytes(data[cur : cur + 4], "little")
-        part_2_len = int.from_bytes(data[cur + 4 : cur + 8], "little")
-        part_3_offset = int.from_bytes(data[cur + 8 : cur + 12], "little")
-        cur += 16
-        self.part_2 = data[cur + part_2_offset : cur + part_2_offset + part_2_len]
+        if data[0x5C] & 1 != 0:
+            logger.error(
+                'External key file ".pyarmor.ikey" is not supported yet, but it will be supported once we get a sample (like this one). Please open an issue on https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues to make this tool stronger.'
+            )
+            raise NotImplementedError(f'{self.file_path} uses ".pyarmor.ikey"')
 
-        cur += part_3_offset
-        part_3_len = int.from_bytes(data[cur + 4 : cur + 8], "little")
-        cur += 32
-        self.part_3 = data[cur : cur + part_3_len]
+        if dword(data, 0x4C) != 0:
+            xor_flag = 0x60 + dword(data, 0x48)
+            xor_target = 0x60 + dword(data, 0x50)
+            xor_length = int.from_bytes(data[xor_flag + 1 : xor_flag + 4], "little")
+            if data[xor_flag] == 1:
+                for i in range(xor_length):
+                    # MUT data
+                    data[xor_target + i] ^= data[xor_flag + 4 + i]
+
+        self.part_1 = bytes_sub(data, 0x2C, 20)
+
+        part_2_offset = dword(data, 0x50)
+        part_2_len = dword(data, 0x54)
+        self.part_2 = bytes_sub(data, 0x60 + part_2_offset, part_2_len)
+
+        var_a1 = 0x60 + dword(data, 0x58)
+        part_3_len = dword(data, var_a1 + 4)
+        self.part_3 = bytes_sub(data, var_a1 + 0x20, part_3_len)
 
     def calc_aes_key(self) -> bytes:
         return hashlib.md5(
