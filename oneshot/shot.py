@@ -263,9 +263,6 @@ def decrypt_process(
 
 
 def get_platform_executable(specified: str) -> str:
-    """
-    Get the appropriate executable for the current platform
-    """
     logger = logging.getLogger("shot")
 
     # If a specific executable is provided, use it
@@ -497,7 +494,7 @@ def main():
                 sequences.extend(result)
 
     if not runtimes:
-        logger.error(f"{Fore.RED}No runtime found{Style.RESET_ALL}")
+        logger.error(f"{Fore.RED}No `pyarmor_runtime` file found{Style.RESET_ALL}")
         return
     if not sequences:
         logger.error(f"{Fore.RED}No armored data found{Style.RESET_ALL}")
