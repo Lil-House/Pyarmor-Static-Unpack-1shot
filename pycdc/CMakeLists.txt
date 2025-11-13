@@ -66,6 +66,7 @@ add_executable(pyarmor-1shot
     bytes/python_3_11.cpp
     bytes/python_3_12.cpp
     bytes/python_3_13.cpp
+    bytes/python_3_14.cpp
 )
 
 install(TARGETS pyarmor-1shot
