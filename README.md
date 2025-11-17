@@ -74,7 +74,7 @@ Feel free to open an issue if you have any questions, suggestions, or problems. 
 ## Todo (PR Welcome!)
 
 - [ ] Documentation (Do not accept PR about this)
-- [ ] Regenerate pyc for other backend decompilers (discussion in GH-24, GH-30)
+- [ ] Regenerate pyc for other backend decompilers (discussion in [GH-24](https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues/24), [GH-30](https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/issues/30))
 - [ ] BCC Mode native part analysis tool
 - [ ] Verify support for different obfuscating options
 - [ ] Verify support for pyarmor_runtime executable on different platforms

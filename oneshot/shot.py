@@ -76,14 +76,20 @@ async def run_pycdc_async(
     exe_path: str,
     seq_file_path: str,
     path_for_log: str,
+    *,
+    no_banner: bool = False,
     show_all: bool = False,
     show_err_opcode: bool = False,
     show_warn_stack: bool = False,
 ):
     logger = logging.getLogger("shot")
     try:
+        options = []
+        if no_banner:
+            options.append("--no-banner")
         process = await asyncio.create_subprocess_exec(
             exe_path,
+            *options,
             seq_file_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -238,9 +244,10 @@ async def decrypt_process_async(
                     exe_path,
                     seq_file_path,
                     relative_path,
-                    args.show_all,
-                    args.show_err_opcode,
-                    args.show_warn_stack,
+                    no_banner=args.no_banner,
+                    show_all=args.show_all,
+                    show_err_opcode=args.show_err_opcode,
+                    show_warn_stack=args.show_warn_stack,
                 )
 
             except Exception as e:
@@ -370,6 +377,11 @@ def parse_args():
         help="path to the pyarmor-1shot executable to use",
         type=str,
     )
+    parser.add_argument(
+        "--no-banner",
+        help="do not show banner in console and output files",
+        action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -381,7 +393,8 @@ def main():
     )
     logger = logging.getLogger("shot")
 
-    print(rf"""{Fore.CYAN}
+    if not args.no_banner:
+        print(rf"""{Fore.CYAN}
  ____                                                                     ____ 
 ( __ )                                                                   ( __ )
  |  |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|  | 
