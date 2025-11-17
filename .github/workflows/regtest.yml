@@ -1,0 +1,55 @@
+# Samples are private; only core devs can access them.
+
+name: Regression Test
+on:
+  push:
+    branches: [main]
+
+jobs:
+  regtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: project
+
+      - name: Commit Message
+        id: commit_message
+        working-directory: ./project
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          echo "message=$(date +'%Y%m%d')-$(git rev-parse --short HEAD)-${COMMIT_MSG}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        working-directory: ./project
+        run: |
+          mkdir build
+          cd build
+          cmake ../pycdc
+          cmake --build . --config Debug
+          cmake --install .
+
+      - name: Checkout regtest repository
+        uses: actions/checkout@v5
+        with:
+          repository: Lil-Ran/armorshot-regtest
+          token: ${{ secrets.REGTEST_PAT }}
+          path: regtest
+          fetch-depth: 1
+          lfs: true
+          submodules: true
+
+      - name: Run shot.py
+        run: |
+          touch ./regtest/.git/.no1shot
+          pip install pycryptodome
+          python3 ./project/oneshot/shot.py ./regtest --no-banner >/dev/null 2>&1
+
+      - name: Commit and push changes
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          cwd: ./regtest
+          add: .
+          default_author: github_actions
+          message: ${{ steps.commit_message.outputs.message }}
+          commit: "--allow-empty"
