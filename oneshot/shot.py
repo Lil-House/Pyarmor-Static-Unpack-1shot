@@ -77,6 +77,7 @@ async def run_pycdc_async(
     seq_file_path: str,
     path_for_log: str,
     *,
+    unit_buf: bool = False,
     no_banner: bool = False,
     show_all: bool = False,
     show_err_opcode: bool = False,
@@ -85,6 +86,8 @@ async def run_pycdc_async(
     logger = logging.getLogger("shot")
     try:
         options = []
+        if unit_buf:
+            options.append("--unitbuf")
         if no_banner:
             options.append("--no-banner")
         process = await asyncio.create_subprocess_exec(
@@ -103,6 +106,21 @@ async def run_pycdc_async(
             logger.warning(f"PYCDC: {line} ({path_for_log})")
 
         for line in stderr_lines:
+            if not unit_buf and line.startswith("Access violation caught"):
+                # retry with --unitbuf
+                await run_pycdc_async(
+                    exe_path,
+                    seq_file_path,
+                    path_for_log,
+                    unit_buf=True,
+                    no_banner=no_banner,
+                    show_all=show_all,
+                    show_err_opcode=show_err_opcode,
+                    show_warn_stack=show_warn_stack,
+                )
+                # do not log anything because it will be logged in the retried call
+                return
+
             if line.startswith(
                 (
                     "Warning: Stack history is empty",
@@ -121,6 +139,7 @@ async def run_pycdc_async(
                     "Unsupported argument",
                     "Unsupported Node type",
                     "Unsupported node type",
+                    "Access violation caught",
                 )
             ):  # annoying wont-fix errors
                 if show_all:
