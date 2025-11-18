@@ -320,27 +320,25 @@ def get_platform_executable(specified: str) -> str:
         )
         return arch_exe_path
 
+    # Allow ".elf" and ".macho" suffixes, so that they can exist in the same folder
     platform_map = {
-        "windows": "pyarmor-1shot.exe",
-        "linux": "pyarmor-1shot",
-        "darwin": "pyarmor-1shot",
+        "windows": ["pyarmor-1shot.exe", "pyarmor-1shot"],
+        "linux": ["pyarmor-1shot", "pyarmor-1shot.elf"],
+        "darwin": ["pyarmor-1shot", "pyarmor-1shot.macho"],
     }
-    base_exe_name = platform_map.get(system, "pyarmor-1shot")
 
     # Then check for platform-specific executable
-    platform_exe_path = os.path.join(oneshot_dir, base_exe_name)
-    if os.path.exists(platform_exe_path):
-        logger.info(f"{Fore.GREEN}Using executable: {base_exe_name}{Style.RESET_ALL}")
-        return platform_exe_path
+    for base_exe_name in platform_map.get(system, ["pyarmor-1shot"]):
+        platform_exe_path = os.path.join(oneshot_dir, base_exe_name)
+        if os.path.exists(platform_exe_path):
+            logger.info(
+                f"{Fore.GREEN}Using executable: {base_exe_name}{Style.RESET_ALL}"
+            )
+            return platform_exe_path
 
-    # Finally, check for generic executable
-    generic_exe_path = os.path.join(oneshot_dir, "pyarmor-1shot")
-    if os.path.exists(generic_exe_path):
-        logger.info(f"{Fore.GREEN}Using executable: pyarmor-1shot{Style.RESET_ALL}")
-        return generic_exe_path
-
+    platform_default = platform_map.get(system, ["pyarmor-1shot"])[0]
     logger.critical(
-        f"{Fore.RED}Executable {base_exe_name} not found, please build it first or download on https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/releases {Style.RESET_ALL}"
+        f"{Fore.RED}Executable {platform_default} not found, please build it first or download on https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot/releases {Style.RESET_ALL}"
     )
     exit(1)
 
