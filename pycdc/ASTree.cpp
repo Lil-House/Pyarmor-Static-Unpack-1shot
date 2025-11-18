@@ -267,6 +267,11 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
     bool need_try = false;
     bool variable_annotations = false;
 
+    // BEGIN ONESHOT TEMPORARY PATCH
+    // For Pyarmor generated `NOP; JUMP_FORWARD` sequences
+    bool last_is_nop = false;
+    // END ONESHOT PATCH
+
     while (!source.atEof()) {
 #if defined(BLOCK_DEBUG) || defined(STACK_DEBUG)
         fprintf(stderr, "%-7d", pos);
@@ -332,6 +337,33 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                 CheckIfExpr(stack, curblock);
             }
         }
+
+        // BEGIN ONESHOT TEMPORARY PATCH
+        // For Pyarmor generated `NOP; JUMP_FORWARD` sequences
+        if (last_is_nop && opcode == Pyc::JUMP_FORWARD_A) {
+            int offs = operand;
+            if (mod->verCompare(3, 10) >= 0)
+                offs *= sizeof(uint16_t);
+
+            // If destination is a:
+            //     LOAD_CONST   '__pyarmor_exit_N__'
+            // Then change JUMP_FORWARD to RETURN_VALUE
+            const char* code_bytes = code->code()->value();
+            for (int i = 0; i < 10; i += 2) {
+                if (pos + offs + i + 1 >= code->code()->length())
+                    break;
+                int tested_opcode = Pyc::ByteToOpcode(mod->majorVer(), mod->minorVer(), code_bytes[pos + offs + i]);
+                if (tested_opcode == Pyc::LOAD_CONST_A) {
+                    unsigned char tested_operand = code_bytes[pos + offs + i + 1];
+                    auto str = code->getConst(tested_operand).try_cast<PycString>();
+                    if (str != nullptr && str->startsWith("__pyarmor_exit_")) {
+                        opcode = Pyc::RETURN_VALUE;
+                        break;
+                    }
+                }
+            }
+        }
+        // END ONESHOT PATCH
 
         switch (opcode) {
         case Pyc::BINARY_OP_A:
@@ -3004,6 +3036,10 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                       || (curblock->blktype() == ASTBlock::BLK_IF)
                       || (curblock->blktype() == ASTBlock::BLK_ELIF) )
                  && (curblock->end() == pos);
+
+        // BEGIN ONESHOT TEMPORARY PATCH
+        last_is_nop = (opcode == Pyc::NOP);
+        // END ONESHOT PATCH
     }
 
     if (stack_hist.size()) {
