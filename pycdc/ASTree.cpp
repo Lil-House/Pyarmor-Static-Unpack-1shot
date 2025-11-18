@@ -2164,7 +2164,9 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                     curblock = blocks.top();
                     curblock->append(prev.cast<ASTNode>());
 
-                    bc_next(source, mod, opcode, operand, pos);
+                    // BEGIN ONESHOT TEMPORARY PATCH
+                    // bc_next(source, mod, opcode, operand, pos);
+                    // END ONESHOT PATCH
                 }
             }
             break;
