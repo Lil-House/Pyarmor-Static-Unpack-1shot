@@ -348,7 +348,7 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
             // If destination is a:
             //     LOAD_CONST   '__pyarmor_exit_N__'
             // Then change JUMP_FORWARD to RETURN_VALUE
-            const char* code_bytes = code->code()->value();
+            auto code_bytes = (const unsigned char*)code->code()->value();
             for (int i = 0; i < 10; i += 2) {
                 if (pos + offs + i + 1 >= code->code()->length())
                     break;
