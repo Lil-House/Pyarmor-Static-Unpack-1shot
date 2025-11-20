@@ -3,6 +3,9 @@ import os
 from typing import List, Tuple, Union
 
 
+from util import dword
+
+
 def ascii_ratio(data: bytes) -> float:
     return sum(32 <= c < 127 for c in data) / len(data)
 
@@ -17,7 +20,7 @@ def source_as_file(file_path: str) -> Union[List[bytes], None]:
             co = compile(f.read(), "<str>", "exec")
             data = [i for i in co.co_consts if type(i) is bytes and valid_bytes(i)]
             return data
-    except:
+    except Exception:
         return None
 
 
@@ -31,10 +34,10 @@ def source_as_lines(file_path: str) -> Union[List[bytes], None]:
                     data.extend(
                         [i for i in co.co_consts if type(i) is bytes and valid_bytes(i)]
                     )
-                except:
+                except Exception:
                     # ignore not compilable lines
                     pass
-    except:
+    except Exception:
         return None
     return data
 
@@ -53,8 +56,8 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
         if len(data) < 64:
             # don't break if len > 64, maybe there is PY00blahPY000000
             break
-        header_len = int.from_bytes(data[28:32], "little")
-        body_len = int.from_bytes(data[32:36], "little")
+        header_len = dword(data, 28)
+        body_len = dword(data, 32)
         if header_len > 256 or body_len > 0xFFFFF or header_len + body_len > len(data):
             # compressed or coincident, skip
             data = data[4:]
@@ -63,16 +66,16 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
         complete_object_length = header_len + body_len
 
         # maybe followed by data for other Python versions or another part of BCC
-        next_segment_offset = int.from_bytes(data[56:60], "little")
+        next_segment_offset = dword(data, 56)
         data_next = data[next_segment_offset:]
         while next_segment_offset != 0 and valid_bytes(data_next):
-            header_len = int.from_bytes(data_next[28:32], "little")
-            body_len = int.from_bytes(data_next[32:36], "little")
+            header_len = dword(data_next, 28)
+            body_len = dword(data_next, 32)
             complete_object_length = next_segment_offset + header_len + body_len
 
-            if int.from_bytes(data_next[56:60], "little") == 0:
+            if dword(data_next, 56) == 0:
                 break
-            next_segment_offset += int.from_bytes(data_next[56:60], "little")
+            next_segment_offset += dword(data_next, 56)
             data_next = data[next_segment_offset:]
 
         result.append(data[:complete_object_length])
@@ -89,15 +92,17 @@ def nuitka_package(
     last_dot_bytecode = head.rfind(b".bytecode\x00", 0, first_occurrence)
     if last_dot_bytecode == -1:
         return None
-    length = int.from_bytes(head[last_dot_bytecode - 4 : last_dot_bytecode], "little")
+    length = dword(head, last_dot_bytecode - 4)
     end = last_dot_bytecode + length
     cur = last_dot_bytecode
     result = []
     while cur < end:
         module_name_len = head.find(b"\x00", cur, end) - cur
-        module_name = head[cur : cur + module_name_len].decode("utf-8")
+        module_name = head[cur : cur + module_name_len].decode(
+            "utf-8", errors="replace"
+        )
         cur += module_name_len + 1
-        module_len = int.from_bytes(head[cur : cur + 4], "little")
+        module_len = dword(head, cur)
         cur += 4
         module_data = find_data_from_bytes(head[cur : cur + module_len], 1)
         if module_data:
@@ -129,7 +134,7 @@ def detect_process(
     try:
         with open(file_path, "rb") as f:
             head = f.read(16 * 1024 * 1024)
-    except:
+    except Exception:
         logger.error(f"Failed to read file: {relative_path}")
         return None
 

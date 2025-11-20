@@ -24,6 +24,7 @@ except ImportError:
 
 from detect import detect_process
 from runtime import RuntimeInfo
+from util import dword, bytes_sub
 
 
 # Initialize colorama
@@ -169,7 +170,7 @@ async def decrypt_process_async(
     async def process_file(relative_path, data):
         async with semaphore:
             try:
-                serial_number = data[2:8].decode("utf-8")
+                serial_number = data[2:8].decode("utf-8", errors="replace")
                 runtime = runtimes[serial_number]
                 logger.info(
                     f"{Fore.CYAN}Decrypting: {serial_number} ({relative_path}){Style.RESET_ALL}"
@@ -189,18 +190,16 @@ async def decrypt_process_async(
                         f.write(data)
 
                 # Check BCC; mutates "data"
-                if int.from_bytes(data[20:24], "little") == 9:
-                    cipher_text_offset = int.from_bytes(data[28:32], "little")
-                    cipher_text_length = int.from_bytes(data[32:36], "little")
+                if dword(data, 20) == 9:
+                    cipher_text_offset = dword(data, 28)
+                    cipher_text_length = dword(data, 32)
                     nonce = data[36:40] + data[44:52]
                     bcc_aes_decrypted = general_aes_ctr_decrypt(
-                        data[
-                            cipher_text_offset : cipher_text_offset + cipher_text_length
-                        ],
+                        bytes_sub(data, cipher_text_offset, cipher_text_length),
                         runtime.runtime_aes_key,
                         nonce,
                     )
-                    data = data[int.from_bytes(data[56:60], "little") :]
+                    data = data[dword(data, 56) :]
                     bcc_architecture_mapping = {
                         0x2001: "win-x64",
                         0x2003: "linux-x64",
@@ -208,28 +207,21 @@ async def decrypt_process_async(
                     while True:
                         if len(bcc_aes_decrypted) < 16:
                             break
-                        bcc_segment_offset = int.from_bytes(
-                            bcc_aes_decrypted[0:4], "little"
-                        )
-                        bcc_segment_length = int.from_bytes(
-                            bcc_aes_decrypted[4:8], "little"
-                        )
-                        bcc_architecture_id = int.from_bytes(
-                            bcc_aes_decrypted[8:12], "little"
-                        )
-                        bcc_next_segment_offset = int.from_bytes(
-                            bcc_aes_decrypted[12:16], "little"
-                        )
+                        bcc_segment_offset = dword(bcc_aes_decrypted, 0)
+                        bcc_segment_length = dword(bcc_aes_decrypted, 4)
+                        bcc_architecture_id = dword(bcc_aes_decrypted, 8)
+                        bcc_next_segment_offset = dword(bcc_aes_decrypted, 12)
                         bcc_architecture = bcc_architecture_mapping.get(
                             bcc_architecture_id, f"0x{bcc_architecture_id:x}"
                         )
                         bcc_file_path = f"{dest_path}.1shot.bcc.{bcc_architecture}.so"
                         with open(bcc_file_path, "wb") as f:
                             f.write(
-                                bcc_aes_decrypted[
-                                    bcc_segment_offset : bcc_segment_offset
-                                    + bcc_segment_length
-                                ]
+                                bytes_sub(
+                                    bcc_aes_decrypted,
+                                    bcc_segment_offset,
+                                    bcc_segment_length,
+                                )
                             )
                         logger.info(
                             f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
@@ -238,8 +230,8 @@ async def decrypt_process_async(
                             break
                         bcc_aes_decrypted = bcc_aes_decrypted[bcc_next_segment_offset:]
 
-                cipher_text_offset = int.from_bytes(data[28:32], "little")
-                cipher_text_length = int.from_bytes(data[32:36], "little")
+                cipher_text_offset = dword(data, 28)
+                cipher_text_length = dword(data, 32)
                 nonce = data[36:40] + data[44:52]
                 seq_file_path = dest_path + ".1shot.seq"
                 with open(seq_file_path, "wb") as f:
@@ -249,10 +241,7 @@ async def decrypt_process_async(
                     f.write(data[:cipher_text_offset])
                     f.write(
                         general_aes_ctr_decrypt(
-                            data[
-                                cipher_text_offset : cipher_text_offset
-                                + cipher_text_length
-                            ],
+                            bytes_sub(data, cipher_text_offset, cipher_text_length),
                             runtime.runtime_aes_key,
                             nonce,
                         )

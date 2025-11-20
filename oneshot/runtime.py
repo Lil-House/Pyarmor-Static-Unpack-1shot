@@ -37,7 +37,7 @@ class RuntimeInfo:
             # TODO: implement for other platforms
             self.extract_info_win64()
 
-        self.serial_number = self.part_1[12:18].decode()
+        self.serial_number = self.part_1[12:18].decode("utf-8", errors="replace")
         self.runtime_aes_key = self.calc_aes_key()
 
     def __str__(self) -> str:
