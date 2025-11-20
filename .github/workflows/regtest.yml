@@ -44,12 +44,23 @@ jobs:
           touch ./regtest/.git/.no1shot
           pip install pycryptodome
           python3 ./project/oneshot/shot.py ./regtest --no-banner >/dev/null 2>&1
+          cd ./regtest
+          if [ -n "$(git status --porcelain)" ]; then
+            cd ../project
+            COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+            echo "$COMMIT_MSG" | grep -q "update tests" || { echo "Workspace changed but commit message does not contain 'update tests'. Failing workflow."; exit 1; }
+          fi
+          cd ..
 
       - name: Commit and push changes
+        if: ${{
+          steps.commit_message.outputs.message &&
+          (hashFiles('regtest/**') != '') &&
+          (contains(steps.commit_message.outputs.message, 'update tests'))
+          }}
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
           cwd: ./regtest
           add: .
           default_author: github_actions
           message: ${{ steps.commit_message.outputs.message }}
-          commit: "--allow-empty"
