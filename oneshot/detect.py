@@ -7,15 +7,15 @@ def ascii_ratio(data: bytes) -> float:
     return sum(32 <= c < 127 for c in data) / len(data)
 
 
+def valid_bytes(data: bytes) -> bool:
+    return len(data) > 64 and all(0x30 <= b <= 0x39 for b in data[2:8])
+
+
 def source_as_file(file_path: str) -> Union[List[bytes], None]:
     try:
         with open(file_path, "r") as f:
             co = compile(f.read(), "<str>", "exec")
-            data = [
-                i
-                for i in co.co_consts
-                if type(i) is bytes and i.startswith(b"PY00") and len(i) > 64
-            ]
+            data = [i for i in co.co_consts if type(i) is bytes and valid_bytes(i)]
             return data
     except:
         return None
@@ -29,13 +29,7 @@ def source_as_lines(file_path: str) -> Union[List[bytes], None]:
                 try:
                     co = compile(line, "<str>", "exec")
                     data.extend(
-                        [
-                            i
-                            for i in co.co_consts
-                            if type(i) is bytes
-                            and i.startswith(b"PY00")
-                            and len(i) > 64
-                        ]
+                        [i for i in co.co_consts if type(i) is bytes and valid_bytes(i)]
                     )
                 except:
                     # ignore not compilable lines
@@ -45,21 +39,25 @@ def source_as_lines(file_path: str) -> Union[List[bytes], None]:
     return data
 
 
+# XXX: use bytes view instead of copying slices
+
+
 def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
     result = []
     idx = 0
     while len(result) != max_count:
-        idx = data.find(b"PY00")
+        idx = data.find(b"PY00")  # XXX: not necessarily starts with b"PY"
         if idx == -1:
             break
         data = data[idx:]
         if len(data) < 64:
+            # don't break if len > 64, maybe there is PY00blahPY000000
             break
         header_len = int.from_bytes(data[28:32], "little")
         body_len = int.from_bytes(data[32:36], "little")
         if header_len > 256 or body_len > 0xFFFFF or header_len + body_len > len(data):
             # compressed or coincident, skip
-            data = data[5:]
+            data = data[4:]
             continue
 
         complete_object_length = header_len + body_len
@@ -67,11 +65,7 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
         # maybe followed by data for other Python versions or another part of BCC
         next_segment_offset = int.from_bytes(data[56:60], "little")
         data_next = data[next_segment_offset:]
-        while (
-            next_segment_offset != 0
-            and data_next.startswith(b"PY00")
-            and len(data_next) >= 64
-        ):
+        while next_segment_offset != 0 and valid_bytes(data_next):
             header_len = int.from_bytes(data_next[28:32], "little")
             body_len = int.from_bytes(data_next[32:36], "little")
             complete_object_length = next_segment_offset + header_len + body_len
