@@ -11,7 +11,7 @@ def ascii_ratio(data: bytes) -> float:
 
 
 def valid_bytes(data: bytes) -> bool:
-    return len(data) > 64 and all(0x30 <= b <= 0x39 for b in data[2:8])
+    return len(data) > 64 and all(0x30 <= b <= 0x39 for b in data[2:8]) and data[9] == 3
 
 
 def source_as_file(file_path: str) -> Union[List[bytes], None]:

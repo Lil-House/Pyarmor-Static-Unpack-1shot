@@ -216,7 +216,7 @@ void PycCode::pyarmorDecryptCoCode(unsigned long consts_index, PycModule *mod)
         // Assume tail of code is not used there
         memset(
             &code_bytes[desc->decrypt_length],
-            9, // NOP
+            mod->verCompare(3, 13) == 0 ? 30 : mod->verCompare(3, 14) == 0 ? 27 : 9, // NOP
             desc->decrypt_begin_index);
     }
 

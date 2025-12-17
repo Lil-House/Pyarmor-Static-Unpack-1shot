@@ -39,18 +39,18 @@ jobs:
           lfs: true
           submodules: true
 
-      - name: Run shot.py
+      - name: Run shot.py and check for changes
+        working-directory: ./regtest
         run: |
-          touch ./regtest/.git/.no1shot
+          find . -type f -name '*\.1shot\.*' -exec rm -f {} + >/dev/null 2>&1
+          touch ./.git/.no1shot
           pip install pycryptodome
-          python3 ./project/oneshot/shot.py ./regtest --no-banner >/dev/null 2>&1
-          cd ./regtest
+          python3 ../project/oneshot/shot.py . --no-banner >/dev/null 2>&1
           if [ -n "$(git status --porcelain)" ]; then
             cd ../project
             COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
             echo "$COMMIT_MSG" | grep -q "update tests" || { echo "Workspace changed but commit message does not contain 'update tests'. Failing workflow."; exit 1; }
           fi
-          cd ..
 
       - name: Commit and push changes
         if: ${{
