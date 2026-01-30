@@ -49,12 +49,12 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
     result = []
     idx = 0
     while len(result) != max_count:
-        idx = data.find(b"PY00")  # XXX: not necessarily starts with b"PY"
+        idx = data.find(b"PY0")  # XXX: not necessarily starts with b"PY"
         if idx == -1:
             break
         data = data[idx:]
         if len(data) < 64:
-            # don't break if len > 64, maybe there is PY00blahPY000000
+            # don't break if len > 64, maybe there is PY0blahPY0
             break
         header_len = dword(data, 28)
         body_len = dword(data, 32)
@@ -86,7 +86,7 @@ def find_data_from_bytes(data: bytes, max_count=-1) -> List[bytes]:
 def nuitka_package(
     head: bytes, relative_path: str
 ) -> Union[List[Tuple[str, bytes]], None]:
-    first_occurrence = head.find(b"PY00")
+    first_occurrence = head.find(b"PY0")
     if first_occurrence == -1:
         return None
     last_dot_bytecode = head.rfind(b".bytecode\x00", 0, first_occurrence)
