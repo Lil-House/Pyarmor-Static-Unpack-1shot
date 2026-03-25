@@ -17,7 +17,7 @@ jobs:
         id: commit_message
         working-directory: ./project
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ')
           echo "message=$(date +'%Y%m%d')-$(git rev-parse --short HEAD)-${COMMIT_MSG}" >> $GITHUB_OUTPUT
 
       - name: Build
@@ -48,7 +48,7 @@ jobs:
           python3 ../project/oneshot/shot.py . --no-banner >/dev/null 2>&1
           if [ -n "$(git status --porcelain)" ]; then
             cd ../project
-            COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+            COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ')
             echo "$COMMIT_MSG" | grep -q "update tests" || { echo "Workspace changed but commit message does not contain 'update tests'. Failing workflow."; exit 1; }
           fi
 
