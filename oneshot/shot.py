@@ -6,7 +6,7 @@ import asyncio
 import traceback
 import platform
 import locale
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 try:
     from colorama import init, Fore, Style  # type: ignore
@@ -159,19 +159,22 @@ async def run_pycdc_async(
         logger.error(f"{Fore.RED}Error details: {error_details}{Style.RESET_ALL}")
 
 
+class RuntimeMismatchError(ValueError):
+    pass
+
+
 async def decrypt_process_async(
-    runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str, bytes]], args
+    runtimes: Dict[str, Set[RuntimeInfo]], sequences: List[Tuple[str, bytes]], args
 ):
     logger = logging.getLogger("shot")
     output_dir: str = args.output_dir or args.directory
     exe_path = get_platform_executable(args.executable)
     semaphore = asyncio.Semaphore(args.concurrent)
 
-    async def process_file(relative_path, data):
+    async def process_file(relative_path: str, data: bytes):
         async with semaphore:
             try:
                 serial_number = data[2:8].decode("utf-8", errors="replace")
-                runtime = runtimes[serial_number]
                 logger.info(
                     f"{Fore.CYAN}Decrypting: {serial_number} ({relative_path}){Style.RESET_ALL}"
                 )
@@ -189,64 +192,125 @@ async def decrypt_process_async(
                     with open(dest_path + ".1shot.raw", "wb") as f:
                         f.write(data)
 
-                # Check BCC; mutates "data"
-                if dword(data, 20) == 9:
-                    cipher_text_offset = dword(data, 28)
-                    cipher_text_length = dword(data, 32)
-                    nonce = data[36:40] + data[44:52]
-                    bcc_aes_decrypted = general_aes_ctr_decrypt(
-                        bytes_sub(data, cipher_text_offset, cipher_text_length),
-                        runtime.runtime_aes_key,
-                        nonce,
-                    )
-                    data = data[dword(data, 56) :]
-                    bcc_architecture_mapping = {
-                        0x2001: "win-x64",
-                        0x2003: "linux-x64",
-                    }
-                    while True:
-                        if len(bcc_aes_decrypted) < 16:
-                            break
-                        bcc_segment_offset = dword(bcc_aes_decrypted, 0)
-                        bcc_segment_length = dword(bcc_aes_decrypted, 4)
-                        bcc_architecture_id = dword(bcc_aes_decrypted, 8)
-                        bcc_next_segment_offset = dword(bcc_aes_decrypted, 12)
-                        bcc_architecture = bcc_architecture_mapping.get(
-                            bcc_architecture_id, f"0x{bcc_architecture_id:x}"
-                        )
-                        bcc_file_path = f"{dest_path}.1shot.bcc.{bcc_architecture}.so"
-                        with open(bcc_file_path, "wb") as f:
-                            f.write(
-                                bytes_sub(
+                choose_runtime_success = False
+                for runtime in runtimes[serial_number]:
+                    try:
+                        # Check BCC
+                        if dword(data, 20) != 9:
+                            remaining_data = data
+                        else:
+                            cipher_text_offset = dword(data, 28)
+                            cipher_text_length = dword(data, 32)
+                            nonce = data[36:40] + data[44:52]
+                            bcc_aes_decrypted = general_aes_ctr_decrypt(
+                                bytes_sub(data, cipher_text_offset, cipher_text_length),
+                                runtime.runtime_aes_key,
+                                nonce,
+                            )
+                            remaining_data = data[dword(data, 56) :]
+                            bcc_architecture_mapping = {
+                                0x2001: "win-x64",
+                                0x2003: "linux-x64",
+                            }
+                            while True:
+                                if len(bcc_aes_decrypted) < 16:
+                                    break
+                                bcc_segment_offset = dword(bcc_aes_decrypted, 0)
+                                bcc_segment_length = dword(bcc_aes_decrypted, 4)
+                                bcc_architecture_id = dword(bcc_aes_decrypted, 8)
+                                bcc_next_segment_offset = dword(bcc_aes_decrypted, 12)
+                                bcc_architecture = bcc_architecture_mapping.get(
+                                    bcc_architecture_id, f"0x{bcc_architecture_id:x}"
+                                )
+
+                                bcc_write_data = bytes_sub(
                                     bcc_aes_decrypted,
                                     bcc_segment_offset,
                                     bcc_segment_length,
                                 )
-                            )
-                        logger.info(
-                            f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
-                        )
-                        if bcc_next_segment_offset == 0:
-                            break
-                        bcc_aes_decrypted = bcc_aes_decrypted[bcc_next_segment_offset:]
+                                if (
+                                    len(runtimes[serial_number]) > 1
+                                    and bcc_write_data
+                                    and not bcc_write_data.startswith(b"\x7fELF")
+                                ):
+                                    raise RuntimeMismatchError
 
-                cipher_text_offset = dword(data, 28)
-                cipher_text_length = dword(data, 32)
-                nonce = data[36:40] + data[44:52]
-                seq_file_path = dest_path + ".1shot.seq"
-                with open(seq_file_path, "wb") as f:
-                    f.write(b"\xa1" + runtime.runtime_aes_key)
-                    f.write(b"\xa2" + runtime.mix_str_aes_nonce())
-                    f.write(b"\xf0\xff")
-                    f.write(data[:cipher_text_offset])
-                    f.write(
-                        general_aes_ctr_decrypt(
-                            bytes_sub(data, cipher_text_offset, cipher_text_length),
+                                bcc_file_path = (
+                                    f"{dest_path}.1shot.bcc.{bcc_architecture}.so"
+                                )
+                                with open(bcc_file_path, "wb") as f:
+                                    f.write(bcc_write_data)
+                                logger.info(
+                                    f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
+                                )
+
+                                if bcc_next_segment_offset == 0:
+                                    break
+
+                                bcc_aes_decrypted = bcc_aes_decrypted[
+                                    bcc_next_segment_offset:
+                                ]
+
+                        cipher_text_offset = dword(remaining_data, 28)
+                        cipher_text_length = dword(remaining_data, 32)
+                        nonce = remaining_data[36:40] + remaining_data[44:52]
+
+                        remaining_data_decrypted = general_aes_ctr_decrypt(
+                            bytes_sub(
+                                remaining_data, cipher_text_offset, cipher_text_length
+                            ),
                             runtime.runtime_aes_key,
                             nonce,
                         )
+
+                        if len(runtimes[serial_number]) > 1:
+                            # check validity of decrypted data, if not valid, try next runtime
+                            code_object_offset = dword(remaining_data_decrypted, 0)
+                            xor_key_procedure_length = dword(
+                                remaining_data_decrypted, 4
+                            )
+                            if (
+                                len(remaining_data_decrypted)
+                                < code_object_offset + xor_key_procedure_length + 5
+                            ):
+                                raise RuntimeMismatchError
+                            marshal_type = remaining_data_decrypted[
+                                code_object_offset + xor_key_procedure_length
+                            ]
+                            if marshal_type & 0x7F != 0x63:  # TYPE_CODE
+                                raise RuntimeMismatchError
+                            arg_count = dword(
+                                remaining_data_decrypted,
+                                code_object_offset + xor_key_procedure_length + 1,
+                            )
+                            if arg_count > 256:
+                                raise RuntimeMismatchError
+
+                        seq_file_path = dest_path + ".1shot.seq"
+                        with open(seq_file_path, "wb") as f:
+                            f.write(b"\xa1" + runtime.runtime_aes_key)
+                            f.write(b"\xa2" + runtime.mix_str_aes_nonce())
+                            f.write(b"\xf0\xff")
+                            f.write(remaining_data[:cipher_text_offset])
+                            f.write(remaining_data_decrypted)
+                            f.write(
+                                remaining_data[
+                                    cipher_text_offset + cipher_text_length :
+                                ]
+                            )
+
+                    except RuntimeMismatchError:
+                        continue  # try next runtime
+
+                    else:
+                        choose_runtime_success = True
+                        break
+
+                if not choose_runtime_success:
+                    logger.error(
+                        f"{Fore.RED}No matching runtime found for serial number {serial_number} ({relative_path}){Style.RESET_ALL}"
                     )
-                    f.write(data[cipher_text_offset + cipher_text_length :])
+                    return
 
                 await run_pycdc_async(
                     exe_path,
@@ -272,7 +336,7 @@ async def decrypt_process_async(
 
 
 def decrypt_process(
-    runtimes: Dict[str, RuntimeInfo], sequences: List[Tuple[str, bytes]], args
+    runtimes: Dict[str, Set[RuntimeInfo]], sequences: List[Tuple[str, bytes]], args
 ):
     asyncio.run(decrypt_process_async(runtimes, sequences, args))
 
@@ -420,10 +484,10 @@ def main():
     if args.runtime:
         specified_runtime = RuntimeInfo(args.runtime)
         print(specified_runtime)
-        runtimes = {specified_runtime.serial_number: specified_runtime}
+        runtimes = {specified_runtime.serial_number: {specified_runtime}}
     else:
         specified_runtime = None
-        runtimes = {"000000": RuntimeInfo.default()}
+        runtimes = {"000000": {RuntimeInfo.default()}}
 
     if args.output_dir and not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -499,14 +563,17 @@ def main():
             ):
                 try:
                     new_runtime = RuntimeInfo(file_path)
-                    runtimes[new_runtime.serial_number] = new_runtime
+                except Exception:
+                    pass
+                else:
+                    runtimes.setdefault(new_runtime.serial_number, set()).add(
+                        new_runtime
+                    )
                     logger.info(
                         f"{Fore.GREEN}Found new runtime: {new_runtime.serial_number} ({file_path}){Style.RESET_ALL}"
                     )
                     print(new_runtime)
                     continue
-                except Exception:
-                    pass
 
             result = detect_process(file_path, relative_path)
             if result is not None:

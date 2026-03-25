@@ -86,7 +86,7 @@ class RuntimeInfo:
         # Align with pyd file and executable address:
         # In .pyd files b"pyarmor-vax" locates at 0x???2C
         # But not .so
-        data = bytearray(bytes_sub(data, cur - 0x2C, 0x800))
+        data = bytearray(bytes_sub(data, cur - 0x2C, 1 * 1024 * 1024))
 
         if data[0x5C] & 1 != 0:
             logger.error(
@@ -120,6 +120,17 @@ class RuntimeInfo:
 
     def mix_str_aes_nonce(self) -> bytes:
         return self.part_3[:12]
+
+    def __hash__(self) -> int:
+        return hash(self.runtime_aes_key)
+
+    def __eq__(self, other: object) -> bool:
+        # assume there is no md5 collision
+        # if runtime_aes_key equals, then part_1, part_2, and part_3 must be the same
+        # so serial_number and mix_str_aes_nonce are not needed for equality check
+        if not isinstance(other, RuntimeInfo):
+            return NotImplemented
+        return self.runtime_aes_key == other.runtime_aes_key
 
     @classmethod
     def default(cls) -> "RuntimeInfo":

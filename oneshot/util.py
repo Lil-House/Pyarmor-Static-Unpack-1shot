@@ -3,4 +3,4 @@ def dword(buffer, idx: int) -> int:
 
 
 def bytes_sub(buffer, start: int, length: int) -> bytes:
-    return buffer[start : start + length]
+    return bytes(buffer[start : start + length])
