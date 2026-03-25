@@ -23,7 +23,7 @@
 
 #include "ASTree.h"
 
-const char* VERSION = "v0.2.2";
+const char* VERSION = "v0.3.0";
 
 #ifdef _WIN32
 

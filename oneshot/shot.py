@@ -236,7 +236,7 @@ async def decrypt_process_async(
                                     raise RuntimeMismatchError
 
                                 bcc_file_path = (
-                                    f"{dest_path}.1shot.bcc.{bcc_architecture}.so"
+                                    f"{dest_path}.1shot.bcc.{bcc_architecture}.elf"
                                 )
                                 with open(bcc_file_path, "wb") as f:
                                     f.write(bcc_write_data)
@@ -475,7 +475,7 @@ def main():
  |  |  |_|    \_, |\__,_|_|  |_||_||_|\___/|_|   |_|___/|_||_|\___/ \__|  |  |
  |  |         |__/                                                        |  |
  |__|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|__|
-(____)                                                        v0.2.2     (____)
+(____)                                                        v0.3.0     (____)
 
               For technology exchange only. Use at your own risk.
         GitHub: https://github.com/Lil-House/Pyarmor-Static-Unpack-1shot
