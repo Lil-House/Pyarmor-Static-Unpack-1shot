@@ -211,6 +211,7 @@ async def decrypt_process_async(
                             bcc_architecture_mapping = {
                                 0x2001: "win-x64",
                                 0x2003: "linux-x64",
+                                0x3002: "darwin-arm64",
                             }
                             while True:
                                 if len(bcc_aes_decrypted) < 16:
