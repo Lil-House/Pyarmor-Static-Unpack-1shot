@@ -234,7 +234,8 @@ async def decrypt_process_async(
                                     and bcc_write_data
                                     and not bcc_write_data.startswith(b"\x7fELF")
                                 ):
-                                    raise RuntimeMismatchError
+                                    msg = f"BCC {bcc_write_data[:4]} is not b'\x7fELF' ({relative_path})"
+                                    raise RuntimeMismatchError(msg)
 
                                 bcc_file_path = (
                                     f"{dest_path}.1shot.bcc.{bcc_architecture}.elf"
@@ -274,18 +275,20 @@ async def decrypt_process_async(
                                 len(remaining_data_decrypted)
                                 < code_object_offset + xor_key_procedure_length + 5
                             ):
-                                raise RuntimeMismatchError
-                            marshal_type = remaining_data_decrypted[
-                                code_object_offset + xor_key_procedure_length
-                            ]
-                            if marshal_type & 0x7F != 0x63:  # TYPE_CODE
-                                raise RuntimeMismatchError
-                            arg_count = dword(
+                                msg = f"{len(remaining_data_decrypted) = }, {code_object_offset = }, {xor_key_procedure_length = }, {code_object_offset + xor_key_procedure_length = } ({relative_path})"
+                                raise RuntimeMismatchError(msg)
+                            front = bytes_sub(
                                 remaining_data_decrypted,
-                                code_object_offset + xor_key_procedure_length + 1,
+                                code_object_offset + xor_key_procedure_length,
+                                5,
                             )
-                            if arg_count > 256:
-                                raise RuntimeMismatchError
+                            if (
+                                front != b"\xe3\x00\x00\x00\x00"
+                                and front != b"\x63\x00\x00\x00\x00"
+                            ):
+                                # TYPE_CODE, argcount=0 (top level)
+                                msg = f"{code_object_offset = }, {xor_key_procedure_length = }, decrypted data front {front} does not match (TYPE_CODE, argcount=0) ({relative_path})"
+                                raise RuntimeMismatchError(msg)
 
                         seq_file_path = dest_path + ".1shot.seq"
                         with open(seq_file_path, "wb") as f:
@@ -300,7 +303,11 @@ async def decrypt_process_async(
                                 ]
                             )
 
-                    except RuntimeMismatchError:
+                    except RuntimeMismatchError as e:
+                        if os.getenv("ARMORSHOT_DEBUG"):
+                            logger.error(
+                                f"{Fore.RED}Runtime mismatch: {e} ({runtime.serial_number}, {runtime.file_path}){Style.RESET_ALL}"
+                            )
                         continue  # try next runtime
 
                     else:
