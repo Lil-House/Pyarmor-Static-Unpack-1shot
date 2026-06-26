@@ -339,6 +339,14 @@ async def decrypt_process_async(
                     unhide_stack_warnings=args.unhide_stack_warnings,
                 )
 
+                # BCC native mode: lift extracted *.bcc.<arch>.elf back to bytecode-IR
+                if getattr(args, "dump_bcc", True):
+                    try:
+                        from bcc import dump_for_dest
+                    except ImportError:
+                        from .bcc import dump_for_dest
+                    dump_for_dest(dest_path)
+
             except Exception as e:
                 error_details = traceback.format_exc()
                 logger.error(
@@ -473,6 +481,14 @@ def parse_args():
         "--unhide-stack-warnings",
         help="Show pycdc stack related warnings. These logs are too noisy, not helpful, not caused by this Pyarmor-unpack tool, and won't be fixed in this Pyarmor-unpack tool.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--dump-bcc",
+        dest="dump_bcc",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Lift extracted BCC native ELF fragments back to a CPython bytecode-IR "
+        "listing (*.1shot.bcc.<arch>.bytecode.txt). Requires capstone. ",
     )
     parser.add_argument(
         "-v",
