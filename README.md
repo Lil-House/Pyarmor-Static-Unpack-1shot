@@ -42,6 +42,20 @@ You can run this tool in any environment, no need to be the same with obfuscated
 
 The only thing you need to do is specifying where your obfuscated scripts are. The tool does everything like detecting armored data, parsing, disassembling, and decompiling. See "Usage" section below.
 
+### BCC Mode (native code) — opcode-annotated disassembly
+
+Pyarmor's **BCC Mode** is its strongest option: instead of leaving (encrypted) bytecode, it compiles each Python code object to a native **x86-64 ELF fragment** dispatched through an obfuscated runtime helper table (`got0`). With `--dump-asm`, this tool disassembles those fragments and resolves that dispatch table back to CPython opcodes, writing `*.1shot.bcc.<arch>.asm.txt`:
+
+- every `call [got0+off]` is labelled with its opcode — `; ==> LOAD_ATTR  'session'`, `; ==> CALL  (argc=2)`, `; ==> STORE_ATTR`, `; ==> FOR_ITER`, …
+- every constant-pool read is annotated with its value — `mov rsi, [r12+0x18]   ; consts[0] = 'session'`
+- got0-base loads, cached slots (`; got0+0x98 = BIND_ARGS -> rdi`) and register-direct dispatches are tracked through loops and stack spills
+
+Unknown slots are shown honestly as `OP_0xNNN` rather than guessed. Requires `capstone` (`pip install capstone`). Linux/Windows x86-64 fragments are supported; aarch64/arm64 are skipped.
+
+> [!NOTE]
+>
+> A higher-level bytecode-IR reconstruction also exists (`oneshot/bcc.py`, default mode) but is still experimental — its operand-name recovery and reraise/cleanup-tail filtering need more work, so it is not wired into `shot.py` yet. The assembly view above is exact: it only labels what the got0 offset and pool reads provably are.
+
 ## Build
 
 ```bash
@@ -67,6 +81,18 @@ You only need to specify the directory that contains all armored data and `pyarm
 When necessary, specify a `pyarmor_runtime` executable with `-r path/to/pyarmor_runtime[.pyd|.so|.dylib]`.
 
 All files generated from this tool have a `.1shot.` in file names. If you want to save them in another directory instead of in-place, use `-o another/path/`. Folder structure will remain unchanged.
+
+To also analyze **BCC Mode** native fragments, add `--dump-asm` (requires `capstone`):
+
+```bash
+python /path/to/oneshot/shot.py /path/to/scripts --dump-asm
+```
+
+This writes `*.1shot.bcc.<arch>.asm.txt` next to each extracted fragment — the native x86-64 with the got0 dispatch table and constant pool resolved (see "BCC Mode" under Features). You can also run it directly on an already-extracted fragment:
+
+```bash
+python /path/to/oneshot/bcc.py file.1shot.bcc.linux-x64.elf --das file.1shot.das --asm
+```
 
 Note:
 
@@ -95,7 +121,7 @@ These are the features we are planning to implement before v1.0.0:
 
 - Rewriting the codebase based on a new pyc decompiler. It will be more stable, maintainable, and extendable.
 - Wiki about the Pyarmor decryption algorithm, and how we analyzed it and implemented it in this tool.
-- The last piece of the puzzle: analysis tool for the native part of BCC Mode (the hardest obfuscating option in Pyarmor).
+- The last piece of the puzzle: analysis tool for the native part of BCC Mode (the hardest obfuscating option in Pyarmor). **In progress** — opcode-annotated native disassembly is available now via `--dump-asm` (see Features); higher-level bytecode-IR reconstruction is still experimental.
 - Packaging and distribution of the tool, for installation from package managers like pip.
 
 Maybe there are not many things to do after v1.0.0. We will maintain the project and fix bugs if necessary.

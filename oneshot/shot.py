@@ -339,8 +339,8 @@ async def decrypt_process_async(
                     unhide_stack_warnings=args.unhide_stack_warnings,
                 )
 
-                # BCC native mode: lift extracted *.bcc.<arch>.elf back to bytecode-IR
-                if getattr(args, "dump_bcc", True):
+                # BCC native mode: dump extracted *.bcc.<arch>.elf as opcode-annotated asm
+                if getattr(args, "dump_asm", False):
                     try:
                         from bcc import dump_for_dest
                     except ImportError:
@@ -483,12 +483,13 @@ def parse_args():
         action="store_true",
     )
     parser.add_argument(
-        "--dump-bcc",
-        dest="dump_bcc",
+        "--dump-asm",
+        dest="dump_asm",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help="Lift extracted BCC native ELF fragments back to a CPython bytecode-IR "
-        "listing (*.1shot.bcc.<arch>.bytecode.txt). Requires capstone. ",
+        help="Dump extracted BCC native ELF fragments as opcode-annotated x86-64 assembly "
+        "(*.1shot.bcc.<arch>.asm.txt): the got0 dispatch table is resolved to CPython "
+        "opcodes and constant-pool reads to their values. Requires capstone. ",
     )
     parser.add_argument(
         "-v",
