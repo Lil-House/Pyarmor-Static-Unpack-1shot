@@ -237,22 +237,19 @@ async def decrypt_process_async(
                                     bcc_segment_offset,
                                     bcc_segment_length,
                                 )
-                                if (
-                                    len(runtimes[serial_number]) > 1
-                                    and bcc_write_data
-                                    and not bcc_write_data.startswith(b"\x7fELF")
-                                ):
-                                    msg = f"BCC {bcc_write_data[:4]} is not b'\x7fELF' ({relative_path})"
-                                    raise RuntimeMismatchError(msg)
+                                if bcc_write_data:
+                                    if not bcc_write_data.startswith(b"\x7fELF"):
+                                        msg = f"BCC {bcc_write_data[:4]} is not b'\x7fELF' ({relative_path})"
+                                        raise RuntimeMismatchError(msg)
 
-                                bcc_file_path = (
-                                    f"{dest_path}.1shot.bcc.{bcc_architecture}.elf"
-                                )
-                                with open(bcc_file_path, "wb") as f:
-                                    f.write(bcc_write_data)
-                                logger.info(
-                                    f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
-                                )
+                                    bcc_file_path = (
+                                        f"{dest_path}.1shot.bcc.{bcc_architecture}.elf"
+                                    )
+                                    with open(bcc_file_path, "wb") as f:
+                                        f.write(bcc_write_data)
+                                    logger.info(
+                                        f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
+                                    )
 
                                 if bcc_next_segment_offset == 0:
                                     break
