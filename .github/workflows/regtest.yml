@@ -11,7 +11,7 @@ jobs:
   regtest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           path: project
           persist-credentials: false
@@ -33,7 +33,7 @@ jobs:
           cmake --install .
 
       - name: Checkout regtest repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: Lil-Ran/armorshot-regtest
           token: ${{ secrets.REGTEST_PAT }}
@@ -48,7 +48,7 @@ jobs:
         run: |
           find . -type f -name '*\.1shot\.*' -exec rm -f {} + >/dev/null 2>&1
           touch ./.git/.no1shot
-          pip install pycryptodome
+          pip install -r ../project/requirements.txt
           python3 ../project/oneshot/shot.py . --no-banner >/dev/null 2>&1
           if [ -n "$(git status --porcelain)" ]; then
             cd ../project
