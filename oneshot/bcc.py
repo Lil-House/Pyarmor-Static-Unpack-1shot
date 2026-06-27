@@ -1125,9 +1125,9 @@ def _asm_fragment(d, co, end, got, consts, P, op_1a0=None):
     except Exception:
         name_idx = {}
 
-    def short(v):
-        r = repr(v)
-        return r if len(r) <= 46 else r[:43] + "..."
+    def cval(v):
+        # show the FULL constant value; repr() escapes newlines so it stays one line
+        return repr(v)
 
     # got0-base tracking (same robustness as the lifter: reg copies + stack spill/reload +
     # &got0 pointer deref) so every dispatch is recognised even inside loop bodies.
@@ -1135,7 +1135,7 @@ def _asm_fragment(d, co, end, got, consts, P, op_1a0=None):
     for i, x in enumerate(ins):
         ops = x.operands; note = ""
         if i in poolread:
-            note = f"; consts[{poolread[i]}] = {short(consts[poolread[i]])}"
+            note = f"; consts[{poolread[i]}] = {cval(consts[poolread[i]])}"
         isgl = (x.id == X86_INS_MOV and len(ops) > 1 and ops[1].type == X86_OP_MEM
                 and ops[1].mem.base == X86_REG_RIP and (x.address + x.size + ops[1].mem.disp) == got)
         is_gotptr = (x.id == X86_INS_LEA and ops[1].type == X86_OP_MEM and ops[1].mem.base == X86_REG_RIP
