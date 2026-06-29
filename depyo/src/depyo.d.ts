@@ -1,49 +1,39 @@
-// Auto-generated depyo lib declarations for the TypeScript path alias:
-//   "@depyo/*": ["./node_modules/depyo/lib/*"]
-// Source: https://github.com/skuznetsov/depyo.js @ 1093891
-// Generated from lib/**/*.js declaration emit, then wrapped as ambient @depyo/* modules.
+class VersionInfo {
+  major: number
+  minor: number
+  IsUnicode: boolean
+  opcode: any
+}
 
 declare module "@depyo/BinaryReader" {
   export class BinaryReader {
-    constructor(code: any)
-    _reader: any
+    constructor(code: Buffer)
+    _reader: Buffer
     _pc: number
     set pc(pos: number)
     get pc(): number
     get EOF(): boolean
-    get Reader(): any
+    get Reader(): Buffer
     readChar(): string
-    readByte(): any
-    readUInt16(): any
-    readUInt16BE(): any
-    readInt16(): any
-    readInt16BE(): any
-    readInt32(): any
-    readInt32BE(): any
-    readUInt32(): any
-    readUInt32BE(): any
-    readLong(): {
-      low: any
-      high: any
-    }
-    readLongBE(): {
-      low: any
-      high: any
-    }
-    readULong(): {
-      low: any
-      high: any
-    }
-    readULongBE(): {
-      low: any
-      high: any
-    }
-    readFloat(): any
-    readFloatBE(): any
-    readDouble(): any
-    readDoubleBE(): any
-    readBytes(length: any): any
-    readString(length: any): any
+    readByte(): number
+    readUInt16(): number
+    readUInt16BE(): number
+    readInt16(): number
+    readInt16BE(): number
+    readInt32(): number
+    readInt32BE(): number
+    readUInt32(): number
+    readUInt32BE(): number
+    readLong(): { low: number; high: number }
+    readLongBE(): { low: number; high: number }
+    readULong(): { low: number; high: number }
+    readULongBE(): { low: number; high: number }
+    readFloat(): number
+    readFloatBE(): number
+    readDouble(): number
+    readDoubleBE(): number
+    readBytes(length: number): Buffer<ArrayBuffer>
+    readString(length: number): string
   }
 }
 
@@ -436,12 +426,12 @@ declare module "@depyo/OpCodes" {
 declare module "@depyo/PycDecompiler" {
   export = PycDecompiler
   class PycDecompiler {
-    static opCodeHandlers: {}
+    static opCodeHandlers: Record<number, unknown>
     static setupHandlers(): void
     constructor(obj: any)
     cleanBuild: boolean
     errors: any[]
-    object: any
+    object: PythonObject
     code: any
     /**
      * Debug logging helper - only logs if --debug flag is set
@@ -457,7 +447,7 @@ declare module "@depyo/PycDecompiler" {
     need_try: any
     defBlock: any
     curBlock: any
-    dataStack: any[]
+    dataStack: AST.ASTNode[]
     handlers: {}
     unreachableUntil: number
     currentMatch: any
@@ -539,6 +529,7 @@ declare module "@depyo/PycDecompiler" {
     lookAheadForMatchPattern(): boolean
   }
   import AST = require("@depyo/ast/ast_node")
+  import type { PythonObject } from "@depyo/PythonObject"
 }
 
 declare module "@depyo/PycDisassembler" {
@@ -596,16 +587,31 @@ declare module "@depyo/PycReader" {
     static ConvertBytesToString(bytes: any): any
     static DumpObject(obj: any, level: any): string
     static GetMethodParametersString(codeObject: any): string
-    constructor(data: any, options?: {})
+    constructor(
+      data: string | Buffer,
+      options?: {
+        filename?: string
+        marshal?: boolean
+        versionInfo?: VersionInfo
+        pyVersion?: string
+        silent?: boolean
+      }
+    )
     Strings: any[]
     Objects: any[]
-    m_rdr: any
+    m_rdr: BinaryReader
     m_filename: any
-    m_version: any
-    get Reader(): any
+    m_version: VersionInfo
+
+    pyarmor_aes_key: Buffer
+    pyarmor_mix_str_aes_nonce: Buffer
+    pyarmor_co_code_aes_nonce_xor_enabled: boolean
+    pyarmor_co_code_aes_nonce_xor_key: Buffer
+
+    get Reader(): BinaryReader
     get OpCodes(): any
-    ReadObject(): any
-    ReadString(size: any): any
+    ReadObject(): PythonObject
+    ReadString(size: any): string
     ReadCodeObject(): PythonCodeObject
     ParseExceptionTable(exceptTableObject: any): {
       start: number
@@ -643,7 +649,8 @@ declare module "@depyo/PycReader" {
     UnpackNewLineNumbers(codeObject: any): void
     versionCompare(major: any, minor: any): number
   }
-  import { PythonCodeObject } from "@depyo/PythonObject"
+  import type { BinaryReader } from "@depyo/BinaryReader"
+  import type { PythonCodeObject, PythonObject } from "@depyo/PythonObject"
 }
 
 declare module "@depyo/PycResult" {
@@ -671,6 +678,7 @@ declare module "@depyo/PythonObject" {
     constructor(class_name: any, value: any)
     ClassName: any
     Value: any
+    Reader: PycReader
     add(po: any): void
     get length(): any
     toReprString(): any
@@ -684,14 +692,15 @@ declare module "@depyo/PythonObject" {
     NumLocals: number
     StackSize: number
     Flags: number
-    Code: any
-    Consts: any[]
+    Code: PythonObject
+    Consts: PythonObject
     Names: any[]
     VarNames: any[]
     FreeVars: any[]
     CellVars: any[]
-    FileName: any
-    Name: any
+    FileName: string
+    Name: string
+    QualName: PythonObject
     FirstLineNo: number
     LineNoTab: any[]
     LineNoTabObject: any
@@ -706,6 +715,7 @@ declare module "@depyo/PythonObject" {
     CachedLineNo: number
     getLineNumber(offset: any, isVer310?: boolean): number
   }
+  import type { PycReader } from "@depyo/PycReader"
 }
 
 declare module "@depyo/Unpickle" {
@@ -767,11 +777,11 @@ declare module "@depyo/ast/ast_node" {
     shouldSkipEgCleanupBlock(): boolean
   }
   export class ASTObject extends ASTNode {
-    constructor(op: any)
-    m_obj: any
-    set object(value: any)
-    get object(): any
-    codeFragment(): any
+    constructor(op: PythonObject)
+    m_obj: PythonObject
+    set object(value: PythonObject)
+    get object(): PythonObject
+    codeFragment(): string
   }
   export class ASTUnary extends ASTNode {
     static UnaryOp: {
@@ -909,10 +919,10 @@ declare module "@depyo/ast/ast_node" {
     codeFragment(): any
   }
   export class ASTName extends ASTNode {
-    constructor(name: any)
-    m_name: any
-    set name(value: any)
-    get name(): any
+    constructor(name: string)
+    m_name: string
+    set name(value: string)
+    get name(): string
     codeFragment(): any
   }
   export class ASTDelete extends ASTNode {
@@ -986,12 +996,12 @@ declare module "@depyo/ast/ast_node" {
   export class ASTCall extends ASTNode {
     constructor(func: any, pparams: any, kwparams: any)
     m_func: any
-    m_pparams: any
+    m_pparams: ASTNode[] | null
     m_kwparams: any
     m_var: any
     m_kw: any
     get func(): any
-    get pparams(): any
+    get pparams(): ASTNode[] | null
     get kwparams(): any
     set var(value: any)
     get var(): any
@@ -1374,6 +1384,7 @@ declare module "@depyo/ast/ast_node" {
     get value(): any
   }
   import PycResult = require("@depyo/PycResult")
+  import type { PythonObject } from "@depyo/PythonObject"
 }
 
 declare module "@depyo/bytecode/python_1_0" {
