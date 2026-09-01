@@ -336,6 +336,14 @@ async def decrypt_process_async(
                     unhide_stack_warnings=args.unhide_stack_warnings,
                 )
 
+                # BCC native mode: dump extracted *.bcc.<arch>.elf as opcode-annotated asm
+                if getattr(args, "dump_asm", False):
+                    try:
+                        from bcc import dump_for_dest
+                    except ImportError:
+                        from .bcc import dump_for_dest
+                    dump_for_dest(dest_path)
+
             except Exception as e:
                 error_details = traceback.format_exc()
                 logger.error(
@@ -470,6 +478,15 @@ def parse_args():
         "--unhide-stack-warnings",
         help="Show pycdc stack related warnings. These logs are too noisy, not helpful, not caused by this Pyarmor-unpack tool, and won't be fixed in this Pyarmor-unpack tool.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--dump-asm",
+        dest="dump_asm",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Dump extracted BCC native ELF fragments as opcode-annotated x86-64 assembly "
+        "(*.1shot.bcc.<arch>.asm.txt): the got0 dispatch table is resolved to CPython "
+        "opcodes and constant-pool reads to their values. Requires capstone. ",
     )
     parser.add_argument(
         "-v",

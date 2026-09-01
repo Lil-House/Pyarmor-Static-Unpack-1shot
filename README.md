@@ -42,6 +42,23 @@ You can run this tool in any environment, no need to be the same with obfuscated
 
 The only thing you need to do is specifying where your obfuscated scripts are. The tool does everything like detecting armored data, parsing, disassembling, and decompiling. See "Usage" section below.
 
+### BCC Mode (native code) — opcode-annotated disassembly
+
+Pyarmor's **BCC Mode** is its strongest option: instead of leaving (encrypted) bytecode, it compiles each Python code object to a native **x86-64 ELF fragment** that dispatches every operation through a runtime helper table (`got0`) assembled at load time. With `--dump-asm`, this tool disassembles those fragments and resolves that dispatch table back to CPython opcodes, writing `*.1shot.bcc.<arch>.asm.txt`:
+
+- every `call [got0+off]` is labelled with its opcode — `; ==> LOAD_ATTR  'session'`, `; ==> CALL  (argc=2)`, `; ==> BINARY_SUBSCR`, `; ==> FOR_ITER`, …
+- every constant-pool read is annotated with its value — `mov rsi, [r12+0x18]   ; consts[0] = 'session'`
+- got0-base loads, cached slots (`; got0+0x98 = BIND_ARGS -> rdi`) and register-direct dispatches are tracked through loops and stack spills; the calling convention (SysV vs Win64) is auto-detected per fragment
+
+The `got0` → opcode map is **ground truth, not guessed**: it was recovered by dumping the live fragment dispatch table from a running runtime and resolving each slot to the libpython C-API it points at (`PyObject_GetAttr`=LOAD_ATTR, `PyObject_GetItem`=BINARY_SUBSCR, `PyObject_GetIter`=GET_ITER, `PyList_Append`=LIST_APPEND, …). The object-opcode half of the table is the libpython C-API in alphabetical order, so the map is stable across builds, Python versions (3.10–3.13) and OS — only the ABI differs. Any slot not in the map is shown honestly as `OP_0xNNN`. Requires `capstone` (`pip install capstone`). Linux/Windows x86-64 fragments are supported; aarch64/arm64 are skipped.
+
+#### Current limitations
+
+- **Operand name vs. string literal.** Pyarmor stores `co_names` and `co_consts` as one merged runtime pool with no separator. A constant used *both* as an attribute/global name *and* as a plain string literal (e.g. `name`, `value`, `domain`, `get`) is statically indistinguishable, so its inline operand is shown with a trailing `?` — `; ==> LOAD_ATTR  'name'?`. The exact value is always present in the `; consts[i] = …` annotation on the pool read feeding it; names used *only* as names resolve with no `?`. There is no way to recover the original `co_names`/`co_consts` split — Pyarmor does not emit it.
+- **Empty-pool fragments.** A few functions compile their operands into the native code with no surviving const pool; their `LOAD_ATTR`/`LOAD_GLOBAL` operands cannot be recovered and are left blank.
+- **Disassembly, not decompilation.** Control flow, loops and Pyarmor's per-op error/reraise cleanup tails appear as raw native instructions; `--dump-asm` does not reconstruct an AST or Python source — that is out of scope for this tool.
+- **Themida/WinLicense-packed runtimes.** Some Windows runtimes ship packed. Static `--dump-asm` of their fragments still works and the opcode map still applies (it is fixed by Pyarmor's code generator, independent of OS and of the packer); only *dynamically* re-dumping such a runtime's live table would require unpacking first.
+
 ## Build
 
 ```bash
@@ -67,6 +84,18 @@ You only need to specify the directory that contains all armored data and `pyarm
 When necessary, specify a `pyarmor_runtime` executable with `-r path/to/pyarmor_runtime[.pyd|.so|.dylib]`.
 
 All files generated from this tool have a `.1shot.` in file names. If you want to save them in another directory instead of in-place, use `-o another/path/`. Folder structure will remain unchanged.
+
+To also analyze **BCC Mode** native fragments, add `--dump-asm` (requires `capstone`):
+
+```bash
+python /path/to/oneshot/shot.py /path/to/scripts --dump-asm
+```
+
+This writes `*.1shot.bcc.<arch>.asm.txt` next to each extracted fragment — the native x86-64 with the got0 dispatch table and constant pool resolved (see "BCC Mode" under Features). You can also run it directly on an already-extracted fragment:
+
+```bash
+python /path/to/oneshot/bcc.py file.1shot.bcc.linux-x64.elf --das file.1shot.das
+```
 
 Note:
 
@@ -95,7 +124,7 @@ These are the features we are planning to implement before v1.0.0:
 
 - Rewriting the codebase based on a new pyc decompiler. It will be more stable, maintainable, and extendable.
 - Wiki about the Pyarmor decryption algorithm, and how we analyzed it and implemented it in this tool.
-- The last piece of the puzzle: analysis tool for the native part of BCC Mode (the hardest obfuscating option in Pyarmor).
+- The last piece of the puzzle: analysis tool for the native part of BCC Mode (the hardest obfuscating option in Pyarmor). **Opcode-annotated native disassembly is available now via `--dump-asm`** with a ground-truth `got0`→opcode map (see Features) — every dispatch in the test corpus resolves, and constant-pool operands are recovered from the `.das`. The main remaining limit is inherent: the name-vs-literal ambiguity of Pyarmor's merged constant pool (see "Current limitations"). Source-level reconstruction is out of scope.
 - Packaging and distribution of the tool, for installation from package managers like pip.
 
 Maybe there are not many things to do after v1.0.0. We will maintain the project and fix bugs if necessary.
