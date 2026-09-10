@@ -247,8 +247,13 @@ async def decrypt_process_async(
                                     )
                                     with open(bcc_file_path, "wb") as f:
                                         f.write(bcc_write_data)
+                                    hint = (
+                                        " (analyze it with `python3 -m oneshot.bcc`)"
+                                        if bcc_architecture == "win-x64"
+                                        else ""
+                                    )
                                     logger.info(
-                                        f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{Style.RESET_ALL}"
+                                        f"{Fore.GREEN}Extracted BCC mode native part: {bcc_file_path}{hint}{Style.RESET_ALL}"
                                     )
 
                                 if bcc_next_segment_offset == 0:
